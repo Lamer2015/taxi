@@ -171,7 +171,7 @@ function initFb(){
   fbDb=firebase.database().ref('taxi_rozh');
   fbDb.on('value',snap=>{
    const r=snap.val();
-   if(r&&r.pass&&r.drivers){applying=true;S=r;localStorage.setItem(LS,JSON.stringify(S));applying=false;render();}
+   if(r&&r.pass){applying=true;S=Object.assign({drivers:[],orders:[]},r);localStorage.setItem(LS,JSON.stringify(S));applying=false;render();}}
   });
   return true;
  }catch(e){console.log(e);return false;}
