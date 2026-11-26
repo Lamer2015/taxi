@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Такси Рождествено</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',Arial,sans-serif}
+body{background:#12141a;color:#eee;min-height:100vh}
+.wrap{max-width:520px;margin:0 auto;padding:16px}
+h1{font-size:28px;text-align:center;margin:24px 0 4px;color:#ffd54a}
+.sub{text-align:center;color:#8b93a7;margin-bottom:24px}
+.card{background:#1c2029;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,.35)}
+.вкладки {дисплей: гибкий; интервал: 8 пикселей; нижнее поле: 14 пикселей} 
+.вкладки button{flex:1;padding:12px;border:0;border-radius:10px;background:#232838;color:#9aa3b5;font-size:16px;font-weight:600;cursor:pointer} 
+.кнопка tabs.on{фон: #ffd54a; цвет: #1a1a1a} 
+ввод, выделение, текстовая область{ширина: 100%; отступ: 12 пикселей; поле: 6 пикселей на 0; радиус границы: 10 пикселей; граница: сплошная 1 пиксель #2c3347; фон: #12141a; цвет: #eee; размер шрифта: 16 пикселей}
+input:focus,select:focus{outline:2px solid #ffd54a}
+button{cursor:pointer}
+.btn{width:100%;padding:14px;border:0;border-radius:12px;background:#ffd54a;color:#1a1a1a;font-size:17px;font-weight:700;margin-top:10px} 
+.btn.серый {фон: #2c3347; цвет: #eee} 
+.btn.красный{фон: #e05555; цвет: #fff} 
+.btn.sm {ширина: авто; заполнение: 8px 14px; размер шрифта: 14px; поле: 4px 4px 0 0; радиус границы: 8px}
+.err{color:#ff7b7b;text-align:center;margin-top:10px;min-height:20px}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.topbar b{color:#ffd54a}
+.pill{padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700}
+.p-new{background:#3a2f10;color:#ffd54a}.p-acc{background:#0e3a2a;color:#5be3a4}
+.p-way{background:#0f2c4a;color:#6db3ff}.p-done{background:#173018;color:#7ee08a}.p-dec{background:#3a1515;color:#ff8a8a} 
+.порядок{граница слева: сплошная 4px #444} 
+.порядок[onclick]{курсор: указатель} 
+.order.new{цвет границы: #ffd54a}.order.acc{цвет границы:#5be3a4}.order.way{цвет границы: #6db3ff} 
+.order.done{цвет границы:#7ee08a;непрозрачность:.75}.order.dec{цвет границы: #ff8a8a} 
+.oline{display:flex;justify-content:space-between;margin-bottom:4px;font-size:14px;color:#aab2c5;flex-wrap:wrap;gap:4px}
+.big{font-size:16px;font-weight:700;color:#fff}
+.eta{background:#0f2c4a;color:#6db3ff;padding:3px 8px;border-radius:8px;font-size:13px;display:inline-block;margin-top:6px}
+.h2{margin:18px 0 8px;font-size:16px;color:#8b93a7}
+.hidden{display:none!important}
+.netbar{padding:8px;text-align:center;font-size:13px;border-radius:8px;margin-bottom:10px}
+.net-off{background:#3a3010;color:#ffd54a}.net-on{background:#123a20;color:#7ee08a}
+.eta-pick{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.eta-pick button{padding:8px 12px;border-radius:8px;border:1px solid #2c3347;background:#12141a;color:#eee;font-size:14px}
+.eta-pick button.on{background:#ffd54a;color:#111;font-weight:700}
+.link{color:#6db3ff;text-decoration:none}
+.stat{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #262c3d}
+</style>
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body>
+<div id="login">
+ <div class="wrap">
+ <h1>🚕 Такси Рождествено</h1>
+ <p class="sub">Введите пароль для входа</p>
+ <div class="card">
+ <div class="tabs">
+ <button id="tabDisp" class="on">Диспетчер</button>
+ <button id="tabDrv">Водитель</button>
+ </div>
+ <input type="password" id="pass" placeholder="Пароль" inputmode="numeric">
+ <div id="drvPick" class="hidden">
+ <div class="h2">Кто вы?</div>
+ <select id="drvSel"></select>
+ </div>
+ <button class="btn" id="btnLogin">Войти</button>
+ <div class="err" id="lerr"></div>
+ </div>
+ </div>
+</div>
+
+<div id="app" class="hidden">
+ <div class="wrap">
+ <div class="topbar">
+ <b id="roleLbl"></b>
+ <button class="btn sm gray" id="btnLogout">Выход</button>
+ </div>
+ <div id="netbar" class="netbar net-off">📁 Локальный режим (Firebase не подключен)</div>
+
+ <div class="tabs" id="mainTabs">
+ <button data-t="orders" class="on">Заказы</button>
+ <button data-t="drivers">Водители</button>
+ <button data-t="summary">Сводка</button>
+ <button data-t="settings">Настройки</button>
+ </div>
+
+ <div id="p-orders" class="panel">
+ <button class="btn" id="btnNewOrder">＋ Новый заказ</button>
+ <div id="newOrderForm" class="hidden card" style="margin-top:10px">
+ <div class="h2">Новый заказ</div>
+ <input id="oPhone" placeholder="Телефон клиента" inputmode="tel">
+ <input id="oFrom" placeholder="Откуда забрать">
+ <input id="oTo" placeholder="Куда доставить">
+ <input id="oPrice" placeholder="Цена, ₽" inputmode="numeric">
+ <select id="oType"><option value="Поездка">Поездка</option><option value="Доставка">Доставка</option></select>
+ <input id="oComment" placeholder="Комментарий (необязательно)">
+ <select id="oDrv"></select>
+ <button class="btn" id="oSave">Принять заказ 🔔</button>
+ <button class="btn gray" id="oCancel">Отмена</button>
+ </div>
+ <div id="editForm" class="hidden card" style="margin-top:10px">
+ <div class="h2">Изменить заказ</div>
+ <input id="ePhone" placeholder="Телефон клиента" inputmode="tel">
+ <input id="eFrom" placeholder="Откуда забрать">
+ <input id="eTo" placeholder="Куда доставить">
+ <input id="ePrice" placeholder="Цена, ₽" inputmode="numeric">
+ <select id="eType"><option value="Поездка">Поездка</option><option value="Доставка">Доставка</option></select>
+ <input id="eComment" placeholder="Комментарий (необязательно)">
+ <select id="eDrv"></select>
+ <button class="btn" id="eSave">Сохранить изменения</button>
+ <button class="btn red" id="eDel">Отменить заказ</button>
+ <button class="btn gray" id="eCancel">← Назад</button>
+ </div>
+ <div class="h2">Активные</div>
+ <div id="activeList"></div>
+ <div class="h2">Выполнено сегодня (с указанием времени)</div>
+ <div id="doneList"></div>
+ <div class="h2">Отмененные за день</div>
+ <div id="decList"></div>
+ </div>
+
+ <div id="p-drivers" class="panel hidden">
+ <div class="h2">Добавить водителя</div>
+ <div class="card">
+ <input id="dName" placeholder="Имя водителя">
+ <input id="dPhone" placeholder="Телефон" inputmode="tel">
+ <input id="dCar" placeholder="Машина (например: серый Шевроле Авео)">
+ <input id="dCarNum" placeholder="Номер машины (только цифры)" inputmode="numeric">
+ <button class="btn" id="dAdd">Добавить водителя</button>
+ </div>
+ <div id="drvList"></div>
+ </div>
+
+ <div id="p-summary" class="panel hidden"><div id="summaryBox"></div></div>
+
+ <div id="p-settings" class="panel hidden">
+ <div class="card">
+ <div class="h2">Сменить пароль</div>
+ <input id="newPass" placeholder="Новый пароль" inputmode="numeric">
+ <button class="btn" id="btnPass">Сменить пароль</button>
+ </div>
+ <div class="card">
+ <div class="h2">Firebase (сетевой режим)</div>
+ <p style="color:#8b93a7;font-size:13px;margin-bottom:8px">Вставьте блок firebaseConfig из консоли Firebase целиком. Нужен интернет.</p>
+ <textarea id="fbCfg" rows="6" placeholder='const firebaseConfig = { apiKey: "…", databaseURL: "…", projectId: "…", appId: "…" };'></textarea>
+ <button class="btn" id="btnFb">Сохранить и подключить</button>
+ <div class="err" id="fbErr"></div>
+ </div>
+ </div>
+
+ <div id="p-driver" class="panel hidden">
+ <div id="drvInfo"></div>
+ <div id="drvOrders"></div>
+ </div>
+ </div>
+</div>
+
+<script>
+const LS='taxi_rozh_v9';
+let S=null;
+try{S=JSON.parse(localStorage.getItem(LS))}catch(e){}
+if(!S||!S.pass)S={pass:'1234',drivers:[],orders:[],fb:null};
+function save(){localStorage.setItem(LS,JSON.stringify(S));bc&&bc.postMessage('sync');pushFb();render();}
+const bc=('BroadcastChannel'in window)?new BroadcastChannel('taxi_rozh'):null;
+if(bc)bc.onmessage=()=>{const c=JSON.parse(localStorage.getItem(LS)||'null');if(c){S=c;render();}};
+let fbDb=null,applying=false;
+function initFb(){
+ if(!S.fb||!окно.firebase||!firebase.database)return false;
+ try{
+ firebase.initializeApp(S.fb);
+ fbDb=firebase.database().ref('taxi_rozh');
+ fbDb.on('value',snap=>{
+ const r=snap.val();
+ if(r&&r.pass){applying=true;S=Object.assign({drivers:[],orders:[]},r);localStorage.setItem(LS,JSON.stringify(S));applying=false;render();}}
+
+ });
+ return true;
+ }catch(e){console.log(e);return false;}
+}
+function pushFb(){if(fbDb&&!applying)fbDb.set(S);}
+if(initFb())document.addEventListener('DOMContentLoaded',()=>{
+ const nb=document.getElementById('netbar');nb.className='netbar net-on';nb.textContent='✅ Сетевой режим (Firebase)';
+});
+
+let role=null,drvId=null,tab='disp',curPanel='orders';
+const $=id=>document.getElementById(id);
+function fmtT(ts){const d=new Date(ts);return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');}
+function busyIds(){return S.orders.filter(o=>o.drvId&&(o.status==='new'||o.status==='acc'||o.status==='way')).map(o=>+o.drvId);}
+function drvLbl(d,bs){return d.name+(d.carNum?' · №'+d.carNum:'')+(d.onShift?'':' (не на смене)')+(bs.includes(d.id)?' (занят)':'');}
+function fillDrvSel(){$('drvSel').innerHTML=S.drivers.map(d=>`<option value="${d.id}">${d.name}${d.carNum?' · №'+d.carNum:''}</option>`).join('')||'<option>— нет водителей, добавьте их —</option>';}
+$('tabDisp').onclick=()=>{tab='disp';$('tabDisp').classList.add('on');$('tabDrv').classList.remove('on');$('drvPick').classList.add('hidden');};
+$('tabDrv').onclick=()=>{tab='drv';$('tabDrv').classList.add('on');$('tabDisp').classList.remove('on');$('drvPick').classList.remove('hidden');fillDrvSel();};
+function tryLogin(){
+ const p=$('pass').value.trim();
+ if(p!==String(S.pass).trim()){$('lerr').textContent='Неверный пароль';return;}
+ if(tab==='drv'){if(!S.drivers.length){$('lerr').textContent='Сначала добавьте водителя (войдите в систему как диспетчер)';return;}drvId=+$('drvSel').value;role='drv';}
+ else role='disp';
+ localStorage.setItem(LS+'_who',role+(drvId?':'+drvId:''));
+ enter();
+}
+$('btnLogin').onclick=tryLogin;
+$('pass').onkeydown=e=>{if(e.key==='Enter')tryLogin();};
+function enter(){
+ $('login').classList.add('hidden');$('app').classList.remove('hidden');
+ if(role==='disp'){$('roleLbl').textContent='Диспетчерская';showPanel('orders');}
+ else{$('roleLbl').textContent=(S.drivers.find(d=>d.id===drvId)||{}).name||'Водитель';showPanel('driver');}
+ render();
+}
+$('btnLogout').onclick=()=>{localStorage.removeItem(LS+'_who');location.reload();};
+function showPanel(p){curPanel=p;
+ ['orders','drivers','summary','settings'].forEach(x=>$('p-'+x).classList.toggle('hidden',x!==p||role!=='disp'));
+ $('p-driver').classList.toggle('hidden',role!=='drv');
+ документ.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===p));
+ render();
+}
+документ.querySelectorAll('#mainTabs button').forEach(b=>b.onclick=()=>showPanel(b.dataset.t));
+
+/* водители */
+$('dAdd').onclick=()=>{
+ const n=$('dName').value.trim();if(!n){$('dName').style.outline='2px solid red';return;}
+ S.drivers.push({id:Date.now(),name:n,phone:$('dPhone').value.trim(),car:$('dCar').value.trim(),carNum:$('dCarNum').value.trim(),onShift:false});
+ save();$(«dName»).value=$(«dPhone»).value=$(«dCar»).value=$(«dCarNum»).value='';render();
+};
+function toggleShift(id){const d=S.drivers.find(x=>x.id===id);d.onShift=!d.onShift;save();}
+function delDrv(id){S.drivers=S.drivers.filter(x=>x.id!==id);save();}
+
+/* заказы */
+$('btnNewOrder').onclick=()=>{$('newOrderForm').classList.remove('hidden');fillOrderDrvSel();};
+$('oCancel').onclick=()=>$('newOrderForm').classList.add('hidden');
+function fillOrderDrvSel(){const bs=busyIds();$('oDrv').innerHTML='<option value="">— не назначен —</option>'+S.drivers.map(d=>`<option value="${d.id}">${drvLbl(d,bs)}</option>`).join('');}
+let editId=null;
+function openEdit(id){
+ if(role!=='disp')return;
+ const o=S.orders.find(x=>x.id===id);if(!o||o.status==='done'||o.status==='dec')return;
+ editId=id;$('ePhone').value=o.phone||'';$('eFrom').value=o.from;$('eTo').value=o.to;
+ $('ePrice').value=o.price||'';$('eType').value=o.type||'Поездка';$('eComment').value=o.comment||'';
+ const bs=busyIds();$('eDrv').innerHTML='<option value="">— не назначен —</option>'+S.drivers.map(d=>`<option value="${d.id}"${d.id==o.drvId?' selected':''}>${drvLbl(d,bs)}</option>`).join('');
+ $('newOrderForm').classList.add('hidden');$('editForm').classList.remove('hidden');
+}
+$('eSave').onclick=()=>{
+ const o=S.orders.find(x=>x.id===editId);if(!o)return;
+ const from=$('eFrom').value.trim(),to=$('eTo').value.trim();
+ if(!from||!to){alert('Укажите, откуда и куда везти');return;}
+ o.phone=$('ePhone').value.trim();o.from=from;o.to=to;o.price=$('ePrice').value.trim();o.type=$('eType').value;o.comment=$('eComment').value.trim();o.drvId=$('eDrv').value||null;
+ save();beep();$('editForm').classList.add('hidden');editId=null;
+};
+$('eCancel').onclick=()=>{$('editForm').classList.add('hidden');editId=null;};
+$('eDel').onclick=()=>{
+ const o=S.orders.find(x=>x.id===editId);if(!o)return;
+ o.status='dec';o.eta=null;save();beep();$('editForm').classList.add('hidden');editId=null;
+};
+$('oSave').onclick=()=>{
+ const from=$('oFrom').value.trim(),to=$('oTo').value.trim();
+ if(!from||!to){alert('Укажите, откуда и куда везти');return;}
+ S.orders.push({id:Date.now(),phone:$('oPhone').value.trim(),from,to,price:$('oPrice').value.trim(),type:$('oType').value,comment:$('oComment').value.trim(),drvId:$('oDrv').value||null,status:'new',created:Date.now()});
+ save();beep();$('newOrderForm').classList.add('hidden');
+ ['oPhone','oFrom','oTo','oPrice','oComment'].forEach(x=>$(x).value='');
+};
+function beep(){try{const c=new (window.AudioContext||window.webkitAudioContext)();const o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.3;o.start();setTimeout(()=>o.frequency.value=660,150);setTimeout(()=>o.stop(),350);}catch(e){}}
+function setEta(id,m){const o=S.orders.find(x=>x.id===id);o.eta=m;save();}
+function setStatus(id,st){const o=S.orders.find(x=>x.id===id);
+ if(st==='acc'){
+ const other=S.orders.filter(x=>x.id!==id&&x.drvId==drvId&&(x.status==='acc'||x.status==='way'));
+ if(other.length){alert('У вас есть незакрытый заказ — сначала завершите его');return;}
+ o.accT=Date.now();o.eta=null;}
+ if(st==='way')o.wayT=Date.now();
+ if(st==='done')o.doneT=Date.now();
+ o.status=st;save();beep();}
+function decline(id){const o=S.orders.find(x=>x.id===id);o.status='dec';o.eta=null;save();}
+
+/* рендер */
+function esc(s){return (s||'').replace(/</g,'<');}
+function orderCard(o,isDrv){
+ const st={new:'новый',acc:'принял',way:'в пути',done:'выполнен',dec:'отменен'}[o.status];
+ const cls={new:'new',acc:'acc',way:'way',done:'done',dec:'dec'}[o.status];
+ const d=S.drivers.find(x=>x.id==o.drvId);
+ const editable=!isDrv&&o.status!=='done'&&o.status!=='dec';
+ let h=`<div class="card order ${cls}"${editable?` onclick="openEdit(${o.id})"`:''}><div class="oline"><span class="big">${esc(o.from)} → ${esc(o.to)}</span><span class="pill p-${cls}">${st}</span></div>`;
+ h+=`<div class="oline"><span>📞 ${о.телефон?`<a class="link" href="tel:${o.phone}">${esc(o.phone)}</a>`:'—'}</span><span>${o.price?esc(o.price)+' ₽':"} · ${ o.тип}</span></div>`;
+ if(o.comment)h+=`<div class="oline"><span>💬 ${esc(o.comment)}</span></div>`;
+ h+=`<div class="oline"><span>🚗 ${d?esc(d.name)+(d.carNum?' №'+d.carNum:''):'— не назначен —'}</span>`;
+ if(o.status==='done'&&o.doneT)h+=`<span>✅ выполнен в ${fmtT(o.doneT)}</span>`;
+ h+=`</div>`;
+ if(o.accT&&o.status!=='done'&&o.status!=='dec')h+=`<div class="oline"><span>принят в ${fmtT(o.accT)}${o.wayT?' · выехал в '+fmtT(o.wayT):''}</span></div>`;
+ if(o.eta&&o.status!=='done'&&o.status!=='dec')h+=`<div class="eta">⏱ приедет через ~${o.eta} мин</div>`;
+ if(isDrv){
+ if(o.status==='новый')h+=`<класс кнопки="btn sm" onclick="setStatus(${o.id },'acc')">Принял</кнопка>`;
+ if(o.status==='acc')h+=`<div class="eta-pick">`+[5,7,10,15].map(m=>`<button onclick="setEta(${o.id},${m})">${m} мин</button>`).join('')+`<button onclick="setEta(${o.id},+prompt('Сколько минут?')||o.eta)">своё…</button></div>`;
+ if(o.status==='acc')h+=`<класс кнопки="btn sm" onclick="setStatus(${o.id },'путь')">Выехал</кнопка>`;
+ if(o.status==='acc'||o.status==='way')h+=`<button class="btn sm red" onclick="decline(${o.id})">Не смогу</button>`;
+ if(o.status==='way')h+=`<button class="btn" onclick="setStatus(${o.id},'done')">Выполнено ✅</button>`;
+ }else{
+ if(o.status==='new')h+=`<button class="btn sm red" onclick="event.stopPropagation();setStatus(${o.id},'dec')">Отменить</button>`;
+ }
+ return h+'</div>';
+}
+function render(){
+ if(role==='drv'&&$('p-driver')&&!$('p-driver').classList.contains('hidden')){
+ const d=S.drivers.find(x=>x.id===drvId);
+ $('drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name )}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'—'}</a><br>🚗 ${esc(d.car)||'—'}${d.carNum?' №'+d.carNum:"}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift(${d.id})">${d.onShift?'Уйти со смены':'Выйти на смену'}</button></div>`:'';
+ const mine=S.orders.filter(o=>o.drvId==drvId&&!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
+ const fin=S.orders.filter(o=>o.drvId==drvId&&['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created).slice(0,10);
+ $('drvOrders').innerHTML='<div class="h2">Мои заказы</div>'+(mine.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет активных заказов</div>')+'<div class="h2">История</div>'+(fin.map(o=>orderCard(o,true)).join('')||'');
+ }
+ if(role==='disp'){
+ $('drvList').innerHTML=S.drivers.map(d=>{
+ const dd=S.orders.filter(o=>o.drvId==d.id&&o.status==='done');
+ const earn=dd.reduce((s,o)=>s+(+o.price||0),0);
+ const busy=S.orders.find(o=>o.drvId==d.id&&(o.status==='acc'||o.status==='way'));
+ return `<div class="card"><div class="oline"><span class="big">👤 ${esc(d.name)} ${d.carNum?'№'+d.carNum:''}</span><span class="pill ${busy?'p-dec':(d.onShift?'p-acc':'p-new')}">${busy?'занят':(d.onShift?'на смене':'не на смене')}</span></div>
+ ${busy?`<div class="oline"><span>🚕 сейчас везёт: ${esc(busy.from)} → ${esc(busy.to)}</span></div>`:''}
+ <div class="oline"><span>📞 ${d.phone?`<a class="link" href="tel:${d.phone}">${esc(d.phone)}</a>`:'—'}</span><span>🚗 ${esc(d.car)||'—'}</span></div>
+ <div class="oline"><span>Сегодня выполнено: ${dd.length} зак., ${earn} ₽</span></div>
+ <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift(${d.id})">${d.onShift?'Убрать со смены':'На смену'}</button>
+ <button class="btn sm red" onclick="delDrv(${d.id})">Удалить</button></div>`;}).join('');
+ const act=S.orders.filter(o=>!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
+ const done=S.orders.filter(o=>o.status==='done'&&o.doneT&&new Date(o.doneT).toDateString()===new Date().toDateString()).sort((a,b)=>b.doneT-a.doneT);
+ const dec=S.orders.filter(o=>o.status==='dec'&&new Date(o.created).toDateString()===new Date().toDateString());
+ $('activeList').innerHTML=act.map(o=>orderCard(o,false)).join('')||'<div class="card" style="color:#8b93a7">Нет активных заказов</div>';
+ $('doneList').innerHTML=done.map(o=>orderCard(o,false)).join('')||'<div class="card" style="color:#8b93a7">Пока ничего не выполнено</div>';
+ $('decList').innerHTML=dec.map(o=>orderCard(o,false)).join('');
+ const allDone=S.orders.filter(o=>o.status==='выполнено');
+ $('summaryBox').innerHTML=`<div class="card"><div class="stat"><span>Принято заказов</span><b>${S.orders.filter(o=>o.status!=='dec').length}</b></div>
+ <div class="stat"><span>Выполнено</span><b>${allDone.length}</b></div>
+ <div class="stat"><span>Отменено</span><b>${dec.length}</b></div>
+ <div class="stat"><span>Выручка (все выполненные)</span><b>${allDone.reduce((s,o)=>s+(+o.price||0),0)} ₽</b></div>
+ <div class="stat"><span>Водителям (50%)</span><b>${Math.round(allDone.reduce((s,o)=>s+(+o.price||0),0)/2)} ₽</b></div></div>`
+ +S.драйверы.карта(d=>{const dd=allDone.filter(o=>o.drvId==d.id);return `<div class="card"><b>${esc(d.name )}</b><div class="stat"><span>Выполнено</span><b>${dd.длина}</b></div><div class="stat"><span>Заработок</span><b>${Math.round(dd.reduce((s,o)=>s+(+o.цена||0),0)/2)} ₽</ b></div></div>`;}).присоединиться(");
+ }
+}
+$('btnPass').onclick=()=>{const v=$('newPass').value.trim();if(!v)return;S.pass=v;save();$('newPass').value='';alert('Пароль изменен');};
+$('btnFb').onclick=()=>{
+ const t=$('fbCfg').value;
+ попробуй{ 
+ const m={};const re=/(\w+)\s*:\s*["']([^"']+)["']/ g;пусть x;пока(x=re.exec(t))m[x[1]]=x[2]; 
+ if(!m.apiKey||!m.databaseURL)выдает новую ошибку('nodb'); 
+ S.fb=m;S.pass=S.pass||'1234';localStorage.setItem(LS,JSON.stringify(Ы));
+ if(initFb()){pushFb();$('netbar').className='netbar net-on';$('netbar').textContent='✅ Сетевой режим (Firebase)';$('fbErr').textContent='Подключено!';}
+ else{$('fbErr').textContent='Нет интернета или скрипт не загрузился — попробуйте еще раз при подключении';}
+ }catch(e){$('fbErr').textContent='Не удалось разобрать конфиг — вставьте блок целиком';}
+};
+render();
+</script>
+</body>
+</html>
