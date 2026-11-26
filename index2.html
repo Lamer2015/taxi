@@ -285,8 +285,10 @@ function orderCard(o,isDrv){
  if(o.accT&&o.status!=='done'&&o.status!=='dec')h+=`<div class="oline"><span>принят в ${fmtT(o.accT)}${o.wayT?' · выехал в '+fmtT(o.wayT):''}</span></div>`;
  if(o.eta&&o.status!=='done'&&o.status!=='dec')h+=`<div class="eta">⏱ приедет через ~${o.eta} мин</div>`;
  if(isDrv){
- if(o.status==='new')h+=<button class="btn sm" onclick="setStatus(\${o.id},'acc')">Принял</button>;
- if(o.status==='acc')h+=`<div class="eta-pick">`+[5,7,10,15].map(m=>`<button onclick="setEta(${o.id},${m})">${m} мин</button>`).join('')+`<button onclick="setEta(${o.id},+prompt('Сколько минут?')||o.eta)">своё…</button></div>`;
+ if(o.status==='new')h+=`<button class="btn sm" onclick="setStatus(${o.id},'acc')">Принял</button>`;
+
+ if(o.status==='acc')h+=`<button class="btn sm" onclick="setStatus(${o.id},'way')">Выехал</button>`;
+
  if(o.status==='acc')h+=`if(o.status==='acc')h+=<button class="btn sm" onclick="setStatus(\${o.id},'way')">Выехал</button>;
  if(o.status==='acc'||o.status==='way')h+=`<button class="btn sm red" onclick="decline(${o.id})">Не смогу</button>`;
  if(o.status==='way')h+=`<button class="btn" onclick="setStatus(${o.id},'done')">Выполнено ✅</button>`;
