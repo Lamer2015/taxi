@@ -325,16 +325,17 @@ function render(){
  <div class="stat"><span>Отменено</span><b>${dec.length}</b></div>
  <div class="stat"><span>Выручка (все выполненные)</span><b>${allDone.reduce((s,o)=>s+(+o.price||0),0)} ₽</b></div>
  <div class="stat"><span>Водителям (50%)</span><b>${Math.round(allDone.reduce((s,o)=>s+(+o.price||0),0)/2)} ₽</b></div></div>`
- +S.драйверы.карта(d=>{const dd=allDone.filter(o=>o.drvId==d.id);return `<div class="card"><b>${esc(d.name )}</b><div class="stat"><span>Выполнено</span><b>${dd.длина}</b></div><div class="stat"><span>Заработок</span><b>${Math.round(dd.reduce((s,o)=>s+(+o.цена||0),0)/2)} ₽</ b></div></div>`;}).присоединиться(");
+ +S.drivers.map(d=>{const dd=allDone.filter(o=>o.drvId==d.id);return `<div class="card"><b>${esc(d.name )}</b><div class="stat"><span>Выполнено</span><b>${dd.длина}</b></div><div class="stat"><span>Заработок</span><b>${Math.round(dd.reduce((s,o)=>s+(+o.цена||0),0)/2)} ₽</ b></div></div>`;}).присоединиться(");
  }
 }
 $('btnPass').onclick=()=>{const v=$('newPass').value.trim();if(!v)return;S.pass=v;save();$('newPass').value='';alert('Пароль изменен');};
 $('btnFb').onclick=()=>{
  const t=$('fbCfg').value;
- попробуй{ 
- const m={};const re=/(\w+)\s*:\s*["']([^"']+)["']/ g;пусть x;пока(x=re.exec(t))m[x[1]]=x[2]; 
- if(!m.apiKey||!m.databaseURL)выдает новую ошибку('nodb'); 
- S.fb=m;S.pass=S.pass||'1234';localStorage.setItem(LS,JSON.stringify(Ы));
+  try{
+  const m={};const re=/(\w+)\s*:\s*["']([^"']+)["']/g;let x;while(x=re.exec(t))m[x[1]]=x[2];
+  if(!m.apiKey||!m.databaseURL)throw new Error('nodb');
+  S.fb=m;S.pass=S.pass||'1234';localStorage.setItem(LS,JSON.stringify(S));
+
  if(initFb()){pushFb();$('netbar').className='netbar net-on';$('netbar').textContent='✅ Сетевой режим (Firebase)';$('fbErr').textContent='Подключено!';}
  else{$('fbErr').textContent='Нет интернета или скрипт не загрузился — попробуйте еще раз при подключении';}
  }catch(e){$('fbErr').textContent='Не удалось разобрать конфиг — вставьте блок целиком';}
