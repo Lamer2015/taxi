@@ -160,6 +160,8 @@ const LS='taxi_rozh_v9';
 let S=null;
 try{S=JSON.parse(localStorage.getItem(LS))}catch(e){}
 if(!S||!S.pass)S={pass:'1234',drivers:[],orders:[],fb:null};
+if(!Array.isArray(S.drivers))S.drivers=[];
+if(!Array.isArray(S.orders))S.orders=[];
 function save(){localStorage.setItem(LS,JSON.stringify(S));bc&&bc.postMessage('sync');pushFb();render();}
 const bc=('BroadcastChannel'in window)?new BroadcastChannel('taxi_rozh'):null;
 if(bc)bc.onmessage=()=>{const c=JSON.parse(localStorage.getItem(LS)||'null');if(c){S=c;render();}};
@@ -251,7 +253,7 @@ $('eDel').onclick=()=>{
  o.status='dec';o.eta=null;save();beep();$('editForm').classList.add('hidden');editId=null;
 };
 $('oSave').onclick=()=>{
- const from=$('oFrom').value.trim(),to=$('eTo')&&$('oTo').value.trim();
+ const from=$('oFrom').value.trim(),to=$('oTo').value.trim();
  if(!from||!to){alert('Укажите, откуда и куда везти');return;}
  S.orders.push({id:Date.now(),phone:$('oPhone').value.trim(),from,to,price:$('oPrice').value.trim(),type:$('oType').value,comment:$('oComment').value.trim(),drvId:$('oDrv').value||null,status:'new',created:Date.now()});
  save();beep();$('newOrderForm').classList.add('hidden');
@@ -297,7 +299,7 @@ function orderCard(o,isDrv){
 function render(){
  if(role==='drv'){
  const d=S.drivers.find(x=>x.id===drvId);
- $('#drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name)}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'-'}</a><br>🚗 ${esc(d.car)||'-'}${d.carNum?' №'+d.carNum:''}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift(${d.id})">${d.onShift?'Уйти со смены':'Выйти на смену'}</button></div>`:'';
+ $('drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name)}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'-'}</a><br>🚗 ${esc(d.car)||'-'}${d.carNum?' №'+d.carNum:''}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift(${d.id})">${d.onShift?'Уйти со смены':'Выйти на смену'}</button></div>`:'';
  const mine=S.orders.filter(o=>o.drvId==drvId&&!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
  const fin=S.orders.filter(o=>o.drvId==drvId&&['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created).slice(0,10);
  $('drvOrders').innerHTML='<div class="h2">Мои заказы</div>'+(mine.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет активных заказов</div>')+'<div class="h2">История</div>'+(fin.map(o=>orderCard(o,true)).join('')||'');
