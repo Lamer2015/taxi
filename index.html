@@ -41,6 +41,7 @@ button{cursor:pointer}
 .eta-pick{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .eta-pick button{padding:8px 12px;border-radius:8px;border:1px solid #2c3347;background:#12141a;color:#eee;font-size:14px}
 .eta-pick button.on{background:#ffd54a;color:#111;font-weight:700}
+.btnrow{display:flex;gap:8px;margin-top:10px}.btnrow .btn{width:auto;flex:1;margin:0}
 .link{color:#6db3ff;text-decoration:none}
 .stat{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #262c3d}
 </style>
@@ -293,16 +294,14 @@ function orderCard(o,isDrv){
  if(isDrv){
  const etaBtns=[5,7,10,15,20,25,30].map(m=>`<button class="${o.eta===m?'on':''}" onclick="acceptEta(${o.id},${m})">через ${m} мин</button>`).join('');
  if(o.status==='new'){
- h+=`<button class="btn sm" onclick="pickEta(${o.id})">Принято</button>`;
- h+=`<button class="btn sm red" onclick="decline(${o.id})">Не смогу</button>`;
+ h+=`<div class="btnrow"><button class="btn" onclick="pickEta(${o.id})">Принято</button><button class="btn red" onclick="decline(${o.id})">Не смогу</button></div>`;
  if(etaPickId===o.id)h+=`<div class="eta-pick">${etaBtns}</div>`;
  }
  if(o.status==='acc'){
- if(o.eta)h+=`<button class="btn sm" onclick="pickEta(${o.id})">⏱ приеду через ~${o.eta} мин · изменить</button>`;
- else h+=`<button class="btn sm" onclick="pickEta(${o.id})">Указать время подачи</button>`;
+ if(o.eta)h+=`<button class="btn" onclick="pickEta(${o.id})">⏱ приеду через ~${o.eta} мин · изменить</button>`;
+ else h+=`<button class="btn" onclick="pickEta(${o.id})">Указать время подачи</button>`;
  if(etaPickId===o.id)h+=`<div class="eta-pick">${etaBtns}</div>`;
- h+=`<button class="btn sm" onclick="setStatus(${o.id},'way')">Выехал</button>`;
- h+=`<button class="btn sm red" onclick="decline(${o.id})">Не смогу</button>`;
+ h+=`<div class="btnrow"><button class="btn" onclick="setStatus(${o.id},'way')">Выехал</button><button class="btn red" onclick="decline(${o.id})">Не смогу</button></div>`;
  }
  if(o.status==='way')h+=`<button class="btn" onclick="setStatus(${o.id},'done')">Выполнено ✅</button>`;
  }else{
