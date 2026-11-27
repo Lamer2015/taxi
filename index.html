@@ -214,6 +214,7 @@ function showPanel(p){curPanel=p;
  document.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===p));
  render();
 }
+
 document.querySelectorAll('#mainTabs button').forEach(b=>b.onclick=()=>showPanel(b.dataset.t));
 
 /* водители */
