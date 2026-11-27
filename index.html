@@ -301,7 +301,8 @@ function orderCard(o,isDrv){
 function render(){
  if(role==='drv'&&$('p-driver')&&!$('p-driver').classList.contains('hidden')){
  const d=S.drivers.find(x=>x.id===drvId);
- $('drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name )}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'—'}</a><br>🚗 ${esc(d.car)||'—'}${d.carNum?' №'+d.carNum:"}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift(${d.id})">${d.onShift?'Уйти со смены':'Выйти на смену'}</button></div>`:'';
+ $('#drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name)}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'-'}</a><br>🚗 ${esc(d.car)||'-'}${d.carNum?' №'+d.carNum:''}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift(${d.id})">${d.onShift?'Уйти со смены':'Выйти на смену'}</button></div>`:'';
+
  const mine=S.orders.filter(o=>o.drvId==drvId&&!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
  const fin=S.orders.filter(o=>o.drvId==drvId&&['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created).slice(0,10);
  $('drvOrders').innerHTML='<div class="h2">Мои заказы</div>'+(mine.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет активных заказов</div>')+'<div class="h2">История</div>'+(fin.map(o=>orderCard(o,true)).join('')||'');
