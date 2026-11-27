@@ -290,8 +290,7 @@ function orderCard(o,isDrv){
 
  if(o.status==='acc')h+=`<button class="btn sm" onclick="setStatus(${o.id},'way')">Выехал</button>`;
 
- if(o.status==='acc')h+=`<button class="btn sm" onclick="setStatus(
-
+ 
  if(o.status==='acc'||o.status==='way')h+=`<button class="btn sm red" onclick="decline(${o.id})">Не смогу</button>`;
  if(o.status==='way')h+=`<button class="btn" onclick="setStatus(${o.id},'done')">Выполнено ✅</button>`;
  }else{
