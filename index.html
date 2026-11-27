@@ -107,6 +107,7 @@ button{cursor:pointer}
  <button class="btn sm gray" id="btnLogout">Выход</button>
  </div>
  <div id="netbar" class="netbar net-on">✅ Подключено</div>
+ <button class="btn sm hidden" id="btnNotify" style="margin:0 0 10px">🔔 Включить уведомления</button>
 
  <div class="tabs" id="mainTabs">
  <button data-t="orders" class="on">Заказы</button>
@@ -200,7 +201,7 @@ function errTxt(e){
 rootDb.on('value',snap=>{
  if(!S)return;
  const r=snap.val();
- if(r){S=Object.assign({drivers:[],orders:[]},r);delete S.pass;S.users={};render();}
+ if(r){S=Object.assign({drivers:[],orders:[]},r);delete S.pass;S.users={};render();syncNotifs();}
 });
 usersDb.on('value',snap=>{USERS=snap.val()||{};if(role==='disp'&&curPanel==='requests')render();});
 
@@ -256,6 +257,8 @@ function enterApp(){
  $('mainTabs').classList.toggle('hidden',!isDisp);
  if(isDisp){$('roleLbl').textContent='Диспетчерская';showPanel('orders');}
  else{$('roleLbl').textContent=profile.fio||'Водитель';showPanel('driver');}
+ if('Notification' in window)$('btnNotify').classList.toggle('hidden',Notification.permission==='granted');
+ lastNotif=null;
  render();
 }
 $('btnLogout').onclick=()=>auth.signOut();
@@ -379,6 +382,45 @@ function setStatus(id,st,etaM){const o=S.orders.find(x=>String(x.id)===String(id
  if(st==='done')o.doneT=Date.now();
  o.status=st;save();beep();}
 function decline(id){const o=S.orders.find(x=>String(x.id)===String(id));if(!o)return;o.status='dec';o.eta=null;save();}
+
+/* ---- уведомления ---- */
+let lastNotif=null;
+function notify(title,body){
+ if(!('Notification' in window))return;
+ try{beep();}catch(e){}
+ if(Notification.permission==='granted'){
+ try{new Notification(title,{body});}catch(e){}
+ }else if(Notification.permission==='default'){$('btnNotify').classList.remove('hidden');}
+}
+$('btnNotify').onclick=()=>{
+ if(!('Notification' in window))return;
+ Notification.requestPermission().then(p=>{
+ if(p==='granted'){$('btnNotify').classList.add('hidden');notify('✅ Готово','Уведомления включены');}
+ });
+};
+function syncNotifs(){
+ if(!S||!uid)return;
+ const cur={};S.orders.forEach(o=>cur[String(o.id)]=o.status);
+ if(lastNotif===null){lastNotif=cur;return;}
+ if(role==='drv'){
+ S.orders.forEach(o=>{
+ if(String(o.drvId)!==String(uid))return;
+ const prev=lastNotif[String(o.id)];
+ if(!prev&&o.status==='new')notify('🚕 Новый заказ',(o.from||'')+' → '+(o.to||'')+(o.price?' · '+o.price+' ₽':''));
+ if(prev==='new'&&o.status==='dec')notify('❌ Заказ отменён диспетчером',(o.from||'')+' → '+(o.to||''));
+ });
+ }
+ if(role==='disp'){
+ S.orders.forEach(o=>{
+ const prev=lastNotif[String(o.id)];
+ if(prev==='new'&&o.status==='acc')notify('✅ Заказ принят',(o.eta?'приедет через ~'+o.eta+' мин · ':'')+(o.from||'')+' → '+(o.to||''));
+ if(prev==='acc'&&o.status==='way')notify('🚗 Водитель выехал',(o.from||'')+' → '+(o.to||''));
+ if(prev&&prev!=='dec'&&o.status==='dec')notify('❌ Заказ отменён',(o.from||'')+' → '+(o.to||''));
+ if(prev&&prev!=='done'&&o.status==='done')notify('🏁 Заказ выполнен',(o.from||'')+' → '+(o.to||''));
+ });
+ }
+ lastNotif=cur;
+}
 
 /* ---- рендер ---- */
 function orderCard(o,isDrv){
