@@ -210,8 +210,8 @@ function renderWait(){
  const u=auth.currentUser;const wErr='<div class="err" id="wErr"></div>';
  if(curWait==='verify'){
  $('waitBox').innerHTML=`<div class="h2">📬 Подтвердите почту</div><p style="color:#8b93a7;font-size:14px;margin-bottom:8px">Мы отправили письмо на <b style="color:#eee">${esc(u&&u.email)}</b>. Откройте его и нажмите кнопку подтверждения, затем вернитесь сюда.</p>${wErr}<button class="btn" id="wCheck">Я подтвердил — проверить</button><button class="btn gray" id="wResend">Отправить письмо ещё раз</button><button class="btn gray" id="wOut">Выйти</button>`;
- $('wCheck').onclick=()=>{if(!u)return;u.reload().then(()=>{if(auth.currentUser.emailVerified)afterLogin(auth.currentUser);else $('wErr').textContent='Пока не подтверждено — проверьте папку «Спам»';}).catch(()=>$('wErr').textContent='Не удалось проверить — нужен интернет');};
- $('wResend').onclick=()=>{if(!u)return;u.sendEmailVerification().then(()=>$('wErr').textContent='').catch(e=>$('wErr').textContent=errTxt(e));};
+ $('wCheck').onclick=()=>{if(!u)return;u.reload().then(()=>{if(auth.currentUser.emailVerified)afterLogin(auth.currentUser);else $('wErr').textContent='⏳ Пока не подтверждено — проверьте папку «Спам» и попробуйте через пару минут';}).catch(()=>$('wErr').textContent='Не удалось проверить — нужен интернет');};
+ $('wResend').onclick=()=>{if(!u)return;u.sendEmailVerification().then(()=>$('wErr').textContent='✅ Письмо отправлено — проверьте почту и папку «Спам»').catch(e=>$('wErr').textContent=errTxt(e));};
  $('wOut').onclick=()=>auth.signOut();
  }
  if(curWait==='pending'){
@@ -235,7 +235,7 @@ function afterLogin(u){
  usersDb.child(u.uid).once('value').then(p=>{
  profile=p.val();
  if(!profile){profile={role:'drv',fio:'',phone:'',email:u.email,status:'pending'};usersDb.child(u.uid).set(profile);}
- if(!u.emailVerified){showWait('verify');return;}
+ if(!u.emailVerified&&profile.role!=='disp'){showWait('verify');return;}
  if(profile.status==='rejected'){auth.signOut();showWait('rejected');return;}
  if(profile.status==='pending'){showWait('pending');return;}
  role=profile.role;
