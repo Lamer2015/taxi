@@ -160,7 +160,9 @@ button{cursor:pointer}
 const LS='taxi_rozh_v9';
 let S=null;
 try{S=JSON.parse(localStorage.getItem(LS))}catch(e){}
-if(!S||!S.pass)S={pass:'1234',drivers:[],orders:[],fb:null};
+const FB_DEFAULT={apiKey:'AIzaSyA3J1C0f3P1_JYPXYOV7VdFDQj8gKAxCm4',appId:'1:494671943271:web:c02c5a26f8253ac42526c2',authDomain:'taxi-rozhdestveno.firebaseapp.com',databaseURL:'https://taxi-rozhdestveno-default-rtdb.europe-west1.firebasedatabase.app',messagingSenderId:'494671943271',projectId:'taxi-rozhdestveno',storageBucket:'taxi-rozhdestveno.firebasestorage.app'};
+if(!S||!S.pass)S={pass:'1234',drivers:[],orders:[],fb:FB_DEFAULT};
+if(!S.fb)S.fb=FB_DEFAULT;
 if(!Array.isArray(S.drivers))S.drivers=[];
 if(!Array.isArray(S.orders))S.orders=[];
 function save(){localStorage.setItem(LS,JSON.stringify(S));bc&&bc.postMessage('sync');pushFb();render();}
