@@ -11,26 +11,26 @@ body{background:#12141a;color:#eee;min-height:100vh}
 h1{font-size:28px;text-align:center;margin:24px 0 4px;color:#ffd54a}
 .sub{text-align:center;color:#8b93a7;margin-bottom:24px}
 .card{background:#1c2029;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 2px 10px rgba(0,0,0,.35)}
-.вкладки {дисплей: гибкий; интервал: 8 пикселей; нижнее поле: 14 пикселей} 
-.вкладки button{flex:1;padding:12px;border:0;border-radius:10px;background:#232838;color:#9aa3b5;font-size:16px;font-weight:600;cursor:pointer} 
-.кнопка tabs.on{фон: #ffd54a; цвет: #1a1a1a} 
-введите, выберите, textarea{ширина: 100%; отступ: 12 пикселей; поле: 6 пикселей на 0; радиус границы: 10 пикселей; граница: сплошная 1 пиксель #2c3347; фон: #12141a; цвет: #eee; размер шрифта: 16 пикселей}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button{flex:1;padding:12px;border:0;border-radius:10px;background:#232838;color:#9aa3b5;font-size:16px;font-weight:600;cursor:pointer}
+.tabs button.on{background:#ffd54a;color:#1a1a1a}
+input,select,textarea{width:100%;padding:12px;margin:6px 0;border-radius:10px;border:solid 1px #2c3347;background:#12141a;color:#eee;font-size:16px}
 input:focus,select:focus{outline:2px solid #ffd54a}
 button{cursor:pointer}
-.btn{width:100%;padding:14px;border:0;border-radius:12px;background:#ffd54a;color:#1a1a1a;font-size:17px;font-weight:700;margin-top:10px} 
-.btn.серый {фон: #2c3347; цвет: #eee} 
-.btn.красный{фон: #e05555; цвет: #fff} 
-.btn.sm {ширина: авто; заполнение: 8px 14px; размер шрифта: 14px; поле: 4px 4px 0 0; радиус границы: 8px}
+.btn{width:100%;padding:14px;border:0;border-radius:12px;background:#ffd54a;color:#1a1a1a;font-size:17px;font-weight:700;margin-top:10px}
+.btn.gray{background:#2c3347;color:#eee}
+.btn.red{background:#e05555;color:#fff}
+.btn.sm{width:auto;padding:8px 14px;font-size:14px;margin:4px 4px 0 0;border-radius:8px}
 .err{color:#ff7b7b;text-align:center;margin-top:10px;min-height:20px}
 .topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
 .topbar b{color:#ffd54a}
 .pill{padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700}
 .p-new{background:#3a2f10;color:#ffd54a}.p-acc{background:#0e3a2a;color:#5be3a4}
-.p-way{background:#0f2c4a;color:#6db3ff}.p-done{background:#173018;color:#7ee08a}.p-dec{background:#3a1515;color:#ff8a8a} 
-.порядок{граница слева: сплошная 4px #444} 
-.порядок[onclick]{курсор: указатель} 
-.order.new{цвет границы: #ffd54a}.order.acc{цвет границы:#5be3a4}.order.way{цвет границы: #6db3ff} 
-.order.done{цвет границы:#7ee08a;непрозрачность:.75}.order.dec{цвет границы: #ff8a8a} 
+.p-way{background:#0f2c4a;color:#6db3ff}.p-done{background:#173018;color:#7ee08a}.p-dec{background:#3a1515;color:#ff8a8a}
+.order{border-left:solid 4px #444}
+.order[onclick]{cursor:pointer}
+.order.new{border-color:#ffd54a}.order.acc{border-color:#5be3a4}.order.way{border-color:#6db3ff}
+.order.done{border-color:#7ee08a;opacity:.75}.order.dec{border-color:#ff8a8a}
 .oline{display:flex;justify-content:space-between;margin-bottom:4px;font-size:14px;color:#aab2c5;flex-wrap:wrap;gap:4px}
 .big{font-size:16px;font-weight:700;color:#fff}
 .eta{background:#0f2c4a;color:#6db3ff;padding:3px 8px;border-radius:8px;font-size:13px;display:inline-block;margin-top:6px}
@@ -167,7 +167,7 @@ const bc=('BroadcastChannel'in window)?new BroadcastChannel('taxi_rozh'):null;
 if(bc)bc.onmessage=()=>{const c=JSON.parse(localStorage.getItem(LS)||'null');if(c){S=c;render();}};
 let fbDb=null,applying=false;
 function initFb(){
- if(!S.fb||!окно.firebase||!firebase.database)return false;
+ if(!S.fb||!window.firebase||!firebase.database)return false;
  try{
  firebase.initializeApp(S.fb);
  fbDb=firebase.database().ref('taxi_rozh');
@@ -213,16 +213,16 @@ $('btnLogout').onclick=()=>{localStorage.removeItem(LS+'_who');location.reload()
 function showPanel(p){curPanel=p;
  ['orders','drivers','summary','settings'].forEach(x=>$('p-'+x).classList.toggle('hidden',x!==p||role!=='disp'));
  $('p-driver').classList.toggle('hidden',role!=='drv');
- документ.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===p));
+ document.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===p));
  render();
 }
-документ.querySelectorAll('#mainTabs button').forEach(b=>b.onclick=()=>showPanel(b.dataset.t));
+document.querySelectorAll('#mainTabs button').forEach(b=>b.onclick=()=>showPanel(b.dataset.t));
 
 /* водители */
 $('dAdd').onclick=()=>{
  const n=$('dName').value.trim();if(!n){$('dName').style.outline='2px solid red';return;}
  S.drivers.push({id:Date.now(),name:n,phone:$('dPhone').value.trim(),car:$('dCar').value.trim(),carNum:$('dCarNum').value.trim(),onShift:false});
- save();$(«dName»).value=$(«dPhone»).value=$(«dCar»).value=$(«dCarNum»).value='';render();
+ save();$('dName').value=$('dPhone').value=$('dCar').value=$('dCarNum').value='';render();
 };
 function toggleShift(id){const d=S.drivers.find(x=>x.id===id);d.onShift=!d.onShift;save();}
 function delDrv(id){S.drivers=S.drivers.filter(x=>x.id!==id);save();}
@@ -276,7 +276,7 @@ function setStatus(id,st,etaM){const o=S.orders.find(x=>x.id===id);
 function decline(id){const o=S.orders.find(x=>x.id===id);o.status='dec';o.eta=null;save();}
 
 /* рендер */
-function esc(s){return (s||'').replace(/</g,'<');}
+function esc(s){return (s||'').replace(/</g,'&lt;');}
 function orderCard(o,isDrv){
  const st={new:'новый',acc:'принял',way:'в пути',done:'выполнен',dec:'отменен'}[o.status];
  const cls={new:'new',acc:'acc',way:'way',done:'done',dec:'dec'}[o.status];
@@ -286,7 +286,7 @@ function orderCard(o,isDrv){
  h+=`<div class="oline"><span>📞 ${o.phone?`<a class="link" href="tel:${o.phone}">${esc(o.phone)}</a>`:'—'}</span><span>${o.price?esc(o.price)+' ₽':''} · ${o.type}</span>`;
  if(o.comment)h+=`<div class="oline"><span>💬 ${esc(o.comment)}</span></div>`;
  h+=`<div class="oline"><span>🚗 ${d?esc(d.name)+(d.carNum?' №'+d.carNum:''):'— не назначен —'}</span>`;
- if(o.status==='done'&&o.doneT)h+=`<span>✅ выполнено за ${fmtT(o.doneT)}</span>`;
+ if(o.status==='done'&&o.doneT)h+=`<span>✅ выполнено в ${fmtT(o.doneT)}</span>`;
  h+=`</div>`;
  if(o.accT&&o.status!=='done'&&o.status!=='dec')h+=`<div class="oline"><span>принят в ${fmtT(o.accT)}${o.wayT?' · выехал в '+fmtT(o.wayT):''}</span></div>`;
  if(o.eta&&o.status!=='done'&&o.status!=='dec')h+=`<div class="eta">⏱ приедет через ~${o.eta} мин</div>`;
@@ -313,7 +313,7 @@ function orderCard(o,isDrv){
 function render(){
  if(role==='drv'){
  const d=S.drivers.find(x=>x.id===drvId);
- $('drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name )}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'-'}</a><br>🚗 ${esc(d.car)||'-'}${d.carNum?' №'+d.carNum:"}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift(${d.id})">${d.onShift?'Уйти со смены':'Выйти на смену'}</button></div>`:'';
+ $('drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name)}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'-'}</a><br>🚗 ${esc(d.car)||'-'}${d.carNum?' №'+d.carNum:''}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift(${d.id})">${d.onShift?'Уйти со смены':'Выйти на смену'}</button></div>`:'';
  const mine=S.orders.filter(o=>o.drvId==drvId&&!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
  const fin=S.orders.filter(o=>o.drvId==drvId&&['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created).slice(0,10);
  $('drvOrders').innerHTML='<div class="h2">Мои заказы</div>'+(mine.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет активных заказов</div>')+'<div class="h2">История</div>'+(fin.map(o=>orderCard(o,true)).join('')||'');
@@ -335,22 +335,22 @@ function render(){
  $('activeList').innerHTML=act.map(o=>orderCard(o,false)).join('')||'<div class="card" style="color:#8b93a7">Нет активных заказов</div>';
  $('doneList').innerHTML=done.map(o=>orderCard(o,false)).join('')||'<div class="card" style="color:#8b93a7">Пока ничего не выполнено</div>';
  $('decList').innerHTML=dec.map(o=>orderCard(o,false)).join('');
- const allDone=S.orders.filter(o=>o.status==='выполнено');
+ const allDone=S.orders.filter(o=>o.status==='done');
  $('summaryBox').innerHTML=`<div class="card"><div class="stat"><span>Принятые заказы</span><b>${S.orders.filter(o=>o.status!=='dec').length}</b></div>
  <div class="stat"><span>Выполнено</span><b>${allDone.length}</b></div>
  <div class="stat"><span>Отменено</span><b>${dec.length}</b></div>
  <div class="stat"><span>Выручка (все выполненные)</span><b>${allDone.reduce((s,o)=>s+(+o.price||0),0)} ₽</b></div>
  <div class="stat"><span>Водителям (50%)</span><b>${Math.round(allDone.reduce((s,o)=>s+(+o.price||0),0)/2)} ₽</b></div></div>`
- +S.драйверы.карта(d=>{const dd=allDone.filter(o=>o.drvId==d.id);return `<div class="card"><b>${esc(d.name )}</b><div class="stat"><span>Выполнено</span><b>${dd.длина}</b></div><div class="stat"><span>Заработок</span><b>${Math.round(dd.reduce((s,o)=>s+(+o.цена||0),0)/2)} ₽</ b></div></div>`;}).присоединиться(");
+ +S.drivers.map(d=>{const dd=allDone.filter(o=>o.drvId==d.id);return `<div class="card"><b>${esc(d.name)}</b><div class="stat"><span>Выполнено</span><b>${dd.length}</b></div><div class="stat"><span>Заработок</span><b>${Math.round(dd.reduce((s,o)=>s+(+o.price||0),0)/2)} ₽</b></div></div>`;}).join('');
  }
 }
 $('btnPass').onclick=()=>{const v=$('newPass').value.trim();if(!v)return;S.pass=v;save();$('newPass').value='';alert('Пароль изменен');};
 $('btnFb').onclick=()=>{
  const t=$('fbCfg').value;
- попробуй{ 
- const m={};const re=/(\w+)\s*:\s*["']([^"']+)["']/ g;пусть x;пока(x=re.exec(t))m[x[1]]=x[2]; 
- if(!m.apiKey||!m.databaseURL)выдает новую ошибку('nodb'); 
- S.fb=m;S.pass=S.pass||'1234';localStorage.setItem(LS,JSON.stringify(Ы));
+ try{
+ const m={};const re=/(\w+)\s*:\s*["']([^"']+)["']/g;let x;while(x=re.exec(t))m[x[1]]=x[2];
+ if(!m.apiKey||!m.databaseURL)throw new Error('nodb');
+ S.fb=m;S.pass=S.pass||'1234';localStorage.setItem(LS,JSON.stringify(S));
  if(initFb()){pushFb();$('netbar').className='netbar net-on';$('netbar').textContent='✅ Сетевой режим (Firebase)';$('fbErr').textContent='Подключено!';}
  else{$('fbErr').textContent='Нет интернета или скрипт не загрузился — попробуйте еще раз при подключении';}
  }catch(e){$('fbErr').textContent='Не удалось разобрать конфиг — вставьте блок целиком';}
