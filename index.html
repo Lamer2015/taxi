@@ -77,7 +77,7 @@ button{cursor:pointer}
  </div>
  <div id="netbar" class="netbar net-off">📁 Локальный режим (Firebase не подключен)</div>
 
- <div class="tabs" id="mainTabs">
+ <div class="tabs hidden" id="mainTabs">
  <button data-t="orders" class="on">Заказы</button>
  <button data-t="drivers">Водители</button>
  <button data-t="summary">Сводка</button>
@@ -202,28 +202,25 @@ $('btnLogin').onclick=tryLogin;
 $('pass').onkeydown=e=>{if(e.key==='Enter')tryLogin();};
 function enter(){
  $('login').classList.add('hidden');$('app').classList.remove('hidden');
+ $('mainTabs').classList.toggle('hidden',role!=='disp');
  if(role==='disp'){$('roleLbl').textContent='Диспетчерская';showPanel('orders');}
  else{$('roleLbl').textContent=(S.drivers.find(d=>d.id===drvId)||{}).name||'Водитель';showPanel('driver');}
  render();
 }
 $('btnLogout').onclick=()=>{localStorage.removeItem(LS+'_who');location.reload();};
 function showPanel(p){curPanel=p;
- $('mainTabs').classList.toggle('hidden',role!=='disp');
  ['orders','drivers','summary','settings'].forEach(x=>$('p-'+x).classList.toggle('hidden',x!==p||role!=='disp'));
  $('p-driver').classList.toggle('hidden',role!=='drv');
  document.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===p));
  render();
 }
-
 document.querySelectorAll('#mainTabs button').forEach(b=>b.onclick=()=>showPanel(b.dataset.t));
 
 /* водители */
 $('dAdd').onclick=()=>{
  const n=$('dName').value.trim();if(!n){$('dName').style.outline='2px solid red';return;}
  S.drivers.push({id:Date.now(),name:n,phone:$('dPhone').value.trim(),car:$('dCar').value.trim(),carNum:$('dCarNum').value.trim(),onShift:false});
- save();$('#dName').value=$('#dPhone').value=$('#dCar').value=$('#dCarNum').value='';render();
-
-
+ save();$('dName').value=$('dPhone').value=$('dCar').value=$('dCarNum').value='';render();
 };
 function toggleShift(id){const d=S.drivers.find(x=>x.id===id);d.onShift=!d.onShift;save();}
 function delDrv(id){S.drivers=S.drivers.filter(x=>x.id!==id);save();}
@@ -254,7 +251,7 @@ $('eDel').onclick=()=>{
  o.status='dec';o.eta=null;save();beep();$('editForm').classList.add('hidden');editId=null;
 };
 $('oSave').onclick=()=>{
- const from=$('oFrom').value.trim(),to=$('oTo').value.trim();
+ const from=$('oFrom').value.trim(),to=$('eTo')&&$('oTo').value.trim();
  if(!from||!to){alert('Укажите, откуда и куда везти');return;}
  S.orders.push({id:Date.now(),phone:$('oPhone').value.trim(),from,to,price:$('oPrice').value.trim(),type:$('oType').value,comment:$('oComment').value.trim(),drvId:$('oDrv').value||null,status:'new',created:Date.now()});
  save();beep();$('newOrderForm').classList.add('hidden');
@@ -289,10 +286,7 @@ function orderCard(o,isDrv){
  if(o.eta&&o.status!=='done'&&o.status!=='dec')h+=`<div class="eta">⏱ приедет через ~${o.eta} мин</div>`;
  if(isDrv){
  if(o.status==='new')h+=`<button class="btn sm" onclick="setStatus(${o.id},'acc')">Принято</button>`;
-
  if(o.status==='acc')h+=`<button class="btn sm" onclick="setStatus(${o.id},'way')">Выехал</button>`;
-
- 
  if(o.status==='acc'||o.status==='way')h+=`<button class="btn sm red" onclick="decline(${o.id})">Не смогу</button>`;
  if(o.status==='way')h+=`<button class="btn" onclick="setStatus(${o.id},'done')">Выполнено ✅</button>`;
  }else{
@@ -301,10 +295,9 @@ function orderCard(o,isDrv){
  return h+'</div>';
 }
 function render(){
- if(role==='drv'&&$('p-driver')&&!$('p-driver').classList.contains('hidden')){
+ if(role==='drv'){
  const d=S.drivers.find(x=>x.id===drvId);
  $('#drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name)}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'-'}</a><br>🚗 ${esc(d.car)||'-'}${d.carNum?' №'+d.carNum:''}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift(${d.id})">${d.onShift?'Уйти со смены':'Выйти на смену'}</button></div>`:'';
-
  const mine=S.orders.filter(o=>o.drvId==drvId&&!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
  const fin=S.orders.filter(o=>o.drvId==drvId&&['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created).slice(0,10);
  $('drvOrders').innerHTML='<div class="h2">Мои заказы</div>'+(mine.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет активных заказов</div>')+'<div class="h2">История</div>'+(fin.map(o=>orderCard(o,true)).join('')||'');
@@ -326,14 +319,13 @@ function render(){
  $('activeList').innerHTML=act.map(o=>orderCard(o,false)).join('')||'<div class="card" style="color:#8b93a7">Нет активных заказов</div>';
  $('doneList').innerHTML=done.map(o=>orderCard(o,false)).join('')||'<div class="card" style="color:#8b93a7">Пока ничего не выполнено</div>';
  $('decList').innerHTML=dec.map(o=>orderCard(o,false)).join('');
-const allDone=S.orders.filter(o=>o.status==='done');
+ const allDone=S.orders.filter(o=>o.status==='done');
  $('summaryBox').innerHTML=`<div class="card"><div class="stat"><span>Принятые заказы</span><b>${S.orders.filter(o=>o.status!=='dec').length}</b></div>
  <div class="stat"><span>Выполнено</span><b>${allDone.length}</b></div>
  <div class="stat"><span>Отменено</span><b>${dec.length}</b></div>
  <div class="stat"><span>Выручка (все выполненные)</span><b>${allDone.reduce((s,o)=>s+(+o.price||0),0)} ₽</b></div>
  <div class="stat"><span>Водителям (50%)</span><b>${Math.round(allDone.reduce((s,o)=>s+(+o.price||0),0)/2)} ₽</b></div></div>`
  +S.drivers.map(d=>{const dd=allDone.filter(o=>o.drvId==d.id);return `<div class="card"><b>${esc(d.name)}</b><div class="stat"><span>Выполнено</span><b>${dd.length}</b></div><div class="stat"><span>Заработок</span><b>${Math.round(dd.reduce((s,o)=>s+(+o.price||0),0)/2)} ₽</b></div></div>`;}).join('');
-
  }
 }
 $('btnPass').onclick=()=>{const v=$('newPass').value.trim();if(!v)return;S.pass=v;save();$('newPass').value='';alert('Пароль изменен');};
@@ -343,7 +335,6 @@ $('btnFb').onclick=()=>{
  const m={};const re=/(\w+)\s*:\s*["']([^"']+)["']/g;let x;while(x=re.exec(t))m[x[1]]=x[2];
  if(!m.apiKey||!m.databaseURL)throw new Error('nodb');
  S.fb=m;S.pass=S.pass||'1234';localStorage.setItem(LS,JSON.stringify(S));
-
  if(initFb()){pushFb();$('netbar').className='netbar net-on';$('netbar').textContent='✅ Сетевой режим (Firebase)';$('fbErr').textContent='Подключено!';}
  else{$('fbErr').textContent='Нет интернета или скрипт не загрузился — попробуйте еще раз при подключении';}
  }catch(e){$('fbErr').textContent='Не удалось разобрать конфиг — вставьте блок целиком';}
