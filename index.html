@@ -208,6 +208,7 @@ function enter(){
 }
 $('btnLogout').onclick=()=>{localStorage.removeItem(LS+'_who');location.reload();};
 function showPanel(p){curPanel=p;
+ $('mainTabs').classList.toggle('hidden',role!=='disp');
  ['orders','drivers','summary','settings'].forEach(x=>$('p-'+x).classList.toggle('hidden',x!==p||role!=='disp'));
  $('p-driver').classList.toggle('hidden',role!=='drv');
  document.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===p));
