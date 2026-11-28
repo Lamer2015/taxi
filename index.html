@@ -128,7 +128,6 @@ button:active{transform:scale(.95);filter:brightness(.85)}
  </div>
 
  <div id="p-orders" class="panel">
- <button class="btn" id="btnNewOrder">＋ Новый заказ</button>
  <div id="newOrderForm" class="card" style="margin-top:10px">
  <div class="h2">Новый заказ</div>
  <input id="oPhone" placeholder="Телефон клиента" inputmode="tel">
@@ -138,7 +137,7 @@ button:active{transform:scale(.95);filter:brightness(.85)}
  <div id="sugTo" class="sugwrap"></div>
  <input id="oPrice" placeholder="Цена, ₽" inputmode="numeric">
  <div id="priceHint" class="pricehint"></div>
- <select id="oType"><option value="Поездка">Поездка</option><option value="Доставка">Доставка</option></select>
+ <select id="oType"><option value="Поездка">Поездка</option><option value="Доставка">Доставка</option><option value="С детьми">С детьми</option></select>
  <input id="oComment" placeholder="Комментарий (необязательно)">
  <select id="oDrv"></select>
  <button class="btn" id="oSave">Принять заказ 🔔</button>
@@ -150,7 +149,7 @@ button:active{transform:scale(.95);filter:brightness(.85)}
  <input id="eFrom" placeholder="Откуда забрать">
  <input id="eTo" placeholder="Куда доставить">
  <input id="ePrice" placeholder="Цена, ₽" inputmode="numeric">
- <select id="eType"><option value="Поездка">Поездка</option><option value="Доставка">Доставка</option></select>
+ <select id="eType"><option value="Поездка">Поездка</option><option value="Доставка">Доставка</option><option value="С детьми">С детьми</option></select>
  <input id="eComment" placeholder="Комментарий (необязательно)">
  <select id="eDrv"></select>
  <button class="btn" id="eSave">Сохранить изменения</button>
@@ -465,8 +464,8 @@ function setRate(id){
 function delDrv(id){S.drivers=S.drivers.filter(x=>String(x.id)!==String(id));save();}
 
 /* ---- заказы ---- */
-$('btnNewOrder').onclick=()=>{const f=$('newOrderForm');const wasHidden=f.classList.contains('hidden');if(wasHidden){f.classList.remove('hidden');refreshS().then(fillOrderDrvSel);}else{f.classList.add('hidden');}};
-$('oCancel').onclick=()=>$('newOrderForm').classList.add('hidden');
+
+$('oCancel').onclick=()=>{['oPhone','oFrom','oTo','oPrice','oComment'].forEach(x=>$(x).value='');};
 function busyIds(){return S.orders.filter(o=>o.drvId&&(o.status==='new'||o.status==='acc'||o.status==='way')).map(o=>String(o.drvId));}
 function drvLbl(d,bs){return d.name+(d.carNum?' · №'+d.carNum:'')+(d.onShift?'':' (не на смене)')+(bs.includes(String(d.id))?' (занят)':'');}
 function fillOrderDrvSel(){
