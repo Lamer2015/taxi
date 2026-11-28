@@ -116,7 +116,7 @@ button:active{transform:scale(.95);filter:brightness(.85)}
  <div class="tabs" id="mainTabs">
  <button data-t="orders" class="on">Заказы</button>
  <button data-t="drivers">Водители</button>
- <button data-t="requests">Заявки</button>
+ <button data-t="requests" id="tabRequests">Заявки</button>
  <button data-t="summary">Сводка</button>
  </div>
 
@@ -158,7 +158,7 @@ button:active{transform:scale(.95);filter:brightness(.85)}
  <div id="p-drivers" class="panel hidden">
  <div class="h2">Водители</div>
  <div id="drvList"></div>
- <div class="h2">Отстранённые (доступ закрыт)</div>
+ <div class="h2 hidden" id="firedHdr">Отстранённые (доступ закрыт)</div>
  <div id="firedList"></div>
  </div>
 
@@ -287,8 +287,11 @@ function enterApp(){
  render();
 }
 $('btnLogout').onclick=()=>auth.signOut();
-function showPanel(p){curPanel=p;
+function showPanel(p){
+ if(p==='requests'&&!(profile&&profile.chief))p='orders';
+ curPanel=p;
  ['orders','drivers','requests','summary'].forEach(x=>$('p-'+x).classList.toggle('hidden',x!==p||role!=='disp'));
+ $('tabRequests').classList.toggle('hidden',!(profile&&profile.chief));
  $('p-driver').classList.toggle('hidden',role!=='drv');
  document.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===p));
  render();
@@ -335,7 +338,7 @@ $('btnReg').onclick=()=>{
  return usersDb.once('value').then(us=>{
  const hasDisp=Object.values(us.val()||{}).some(x=>x&&x.role==='disp'&&x.status==='ok');
  const st=(regRole==='disp'&&!hasDisp)?'ok':'pending';
- const prof={role:regRole,fio,phone,car,carNum,email,status:st,created:Date.now()};
+ const prof=Object.assign({role:regRole,fio,phone,car,carNum,email,status:st,created:Date.now()},(regRole==='disp'&&!hasDisp)?{chief:true}:{});
  return usersDb.child(u.uid).set(prof).then(()=>{usersDb.child(u.uid+'/events').push({t:Date.now(),act:'регистрация'});return u.sendEmailVerification().catch(()=>{});});
  });
  }).then(()=>{
@@ -348,6 +351,7 @@ $('btnReg').onclick=()=>{
 
 /* ---- заявки ---- */
 function approveUser(id){
+ if(!profile||!profile.chief)return;
  const u=USERS[id];if(!u)return;
  usersDb.child(id).update({status:'ok',approvedAt:Date.now()});
  usersDb.child(id+'/events').push({t:Date.now(),act:'принят в штат диспетчером'});
@@ -357,8 +361,9 @@ function approveUser(id){
  }
  render();
 }
-function rejectUser(id){usersDb.child(id).update({status:'rejected'});usersDb.child(id+'/events').push({t:Date.now(),act:'заявка отклонена'});}
+function rejectUser(id){if(!profile||!profile.chief)return;usersDb.child(id).update({status:'rejected'});usersDb.child(id+'/events').push({t:Date.now(),act:'заявка отклонена'});}
 function fireUser(id){
+ if(!profile||!profile.chief)return;
  const d=S.drivers.find(x=>String(x.id)===String(id));if(!d)return;
  if(!d.uid){delDrv(id);return;}
  usersDb.child(d.uid).update({status:'fired',firedAt:Date.now()});
@@ -366,6 +371,7 @@ function fireUser(id){
  S.drivers=S.drivers.filter(x=>String(x.id)!==String(id));save();
 }
 function hireUser(id){
+ if(!profile||!profile.chief)return;
  const u=USERS[id];if(!u)return;
  usersDb.child(id).update({status:'ok',reHiredAt:Date.now()});
  usersDb.child(id+'/events').push({t:Date.now(),act:'возвращён в работу'});
@@ -525,11 +531,13 @@ function render(){
  <div class="oline"><span>Сегодня выполнено: ${dd.length} зак., ${earn} ₽</span></div>
  <div class="oline" style="color:#8b93a7"><span>${evsTxt(d)}</span></div>
  <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift('${d.id}')">${d.onShift?'Убрать со смены':'На смену'}</button>
- <button class="btn sm red" onclick="fireUser('${d.id}')">Отстранить</button></div>`;}).join('');
- const fired=Object.entries(USERS).filter(([id,u])=>u&&u.status==='fired');
- $('firedList').innerHTML=fired.map(([id,u])=>`<div class="card"><div class="oline"><span class="big">👤 ${esc(u.fio||'')}</span></div><div class="oline"><span>📞 ${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</span><span>🚗 ${esc(u.car||'')} ${esc(u.carNum||'')}</span></div><button class="btn sm" onclick="hireUser('${id}')">Вернуть в работу</button></div>`).join('')||'<div class="card" style="color:#8b93a7">Отстранённых нет</div>';
+ ${profile.chief?`<button class="btn sm red" onclick="fireUser('${d.id}')">Отстранить</button>`:''}</div>`;}).join('');
+ const showFired=!!(profile&&profile.chief);
+ $('firedHdr').classList.toggle('hidden',!showFired);
+ const fired=showFired?Object.entries(USERS).filter(([id,u])=>u&&u.status==='fired'):[];
+ $('firedList').innerHTML=showFired?fired.map(([id,u])=>`<div class="card"><div class="oline"><span class="big">👤 ${esc(u.fio||'')}</span></div><div class="oline"><span>📞 ${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</span><span>🚗 ${esc(u.car||'')} ${esc(u.carNum||'')}</span></div><button class="btn sm" onclick="hireUser('${id}')">Вернуть в работу</button></div>`).join(''):'<div class="card" style="color:#8b93a7">Отстранённых нет</div>';
  const pend=Object.entries(USERS).filter(([id,u])=>u&&u.status==='pending');
- $('reqList').innerHTML=pend.map(([id,u])=>`<div class="card"><b>${esc(u.fio||u.email)}</b><div class="stat"><span>Роль</span><b>${u.role==='disp'?'диспетчер':'водитель'}</b></div><div class="stat"><span>Телефон</span><b>${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</b></div>${u.role==='drv'?`<div class="stat"><span>Машина</span><b>${esc(u.car||'—')} ${esc(u.carNum||'')}</b></div>`:''}<div class="stat"><span>Почта</span><b>${esc(u.email||'')}</b></div><div class="btnrow"><button class="btn" onclick="approveUser('${id}')">Одобрить</button><button class="btn red" onclick="rejectUser('${id}')">Отклонить</button></div></div>`).join('')||'<div class="card" style="color:#8b93a7">Новых заявок нет</div>';
+ $('reqList').innerHTML=(profile&&profile.chief)?pend.map(([id,u])=>`<div class="card"><b>${esc(u.fio||u.email)}</b><div class="stat"><span>Роль</span><b>${u.role==='disp'?'диспетчер':'водитель'}</b></div><div class="stat"><span>Телефон</span><b>${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</b></div>${u.role==='drv'?`<div class="stat"><span>Машина</span><b>${esc(u.car||'—')} ${esc(u.carNum||'')}</b></div>`:''}<div class="stat"><span>Почта</span><b>${esc(u.email||'')}</b></div><div class="btnrow"><button class="btn" onclick="approveUser('${id}')">Одобрить</button><button class="btn red" onclick="rejectUser('${id}')">Отклонить</button></div></div>`).join(''):'<div class="card" style="color:#8b93a7">Новых заявок нет</div>';
  const act=S.orders.filter(o=>!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
  const done=S.orders.filter(o=>o.status==='done'&&o.doneT&&new Date(o.doneT).toDateString()===new Date().toDateString()).sort((a,b)=>b.doneT-a.doneT);
  const dec=S.orders.filter(o=>o.status==='dec'&&new Date(o.created).toDateString()===new Date().toDateString());
