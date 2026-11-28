@@ -290,7 +290,7 @@ function retried(fn,tries,delay){tries=tries===undefined?5:tries;delay=delay||30
  return fn().catch(e=>{if(tries<=0)throw e;return new Promise(r=>setTimeout(r,delay)).then(()=>retried(fn,tries-1,delay));});}
 function afterLogin(u){
  retried(()=>usersDb.child(u.uid).once('value')).then(p=>p.val()).catch(()=>retried(()=>restGet('taxi_users/'+u.uid),2).then(v=>{useRest=true;startRestPoll();return v;})).then(p=>{
- profile=p.val();
+ profile=p;
  if(!profile){profile={role:'drv',fio:'',phone:'',email:u.email,status:'pending'};usersDb.child(u.uid).set(profile);}
  // Проверка почты письмом не блокирует вход: письма Firebase плохо доходят до российских почтовых сервисов.
  // Доступ по-прежнему контролирует одобрение диспетчера.
