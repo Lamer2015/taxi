@@ -198,6 +198,7 @@ connDb.on('value',snap=>{
  nb.classList.toggle('net-on',v);
  nb.classList.toggle('net-off',!v);
  nb.textContent=v?'✅ Подключено':'⛔ Нет связи с сервером…';
+ if(v&&S&&!useRest&&typeof refreshS==='function')refreshS();/* при переподключении обновляем данные */
 });
 
 /* ---- запасной канал: прямые HTTPS-запросы (если канал SDK не проходит) ---- */
@@ -458,7 +459,14 @@ $('btnNewOrder').onclick=()=>{$('newOrderForm').classList.remove('hidden');fillO
 $('oCancel').onclick=()=>$('newOrderForm').classList.add('hidden');
 function busyIds(){return S.orders.filter(o=>o.drvId&&(o.status==='new'||o.status==='acc'||o.status==='way')).map(o=>String(o.drvId));}
 function drvLbl(d,bs){return d.name+(d.carNum?' · №'+d.carNum:'')+(d.onShift?'':' (не на смене)')+(bs.includes(String(d.id))?' (занят)':'');}
-function fillOrderDrvSel(){const bs=busyIds();$('oDrv').innerHTML='<option value="">— не назначен —</option>'+S.drivers.map(d=>`<option value="${d.id}">${esc(drvLbl(d,bs))}</option>`).join('');}
+function fillOrderDrvSel(){
+ const fill=()=>{const bs=busyIds();$('oDrv').innerHTML='<option value="">— не назначен —</option>'+S.drivers.map(d=>`<option value="${d.id}">${esc(drvLbl(d,bs))}</option>`).join('');};
+ refreshS().then(fill).catch(fill);
+}
+function refreshS(){
+ const p=useRest?restGet('taxi_rozh'):rootDb.once('value').then(sn=>sn.val());
+ return p.then(r=>{if(r){S=Object.assign({drivers:[],orders:[]},r);delete S.pass;delete S.fb;norm();render();syncNotifs();}}).catch(()=>restGet('taxi_rozh').then(r=>{if(r){S=Object.assign({drivers:[],orders:[]},r);delete S.pass;delete S.fb;norm();render();syncNotifs();}}).catch(()=>{}));
+}
 let editId=null;
 function openEdit(id){
  if(role!=='disp')return;
