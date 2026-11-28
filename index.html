@@ -531,7 +531,7 @@ function render(){
  <div class="oline"><span>Сегодня выполнено: ${dd.length} зак., ${earn} ₽</span></div>
  <div class="oline" style="color:#8b93a7"><span>${evsTxt(d)}</span></div>
  <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift('${d.id}')">${d.onShift?'Убрать со смены':'На смену'}</button>
- ${profile.chief?`<button class="btn sm red" onclick="fireUser('${d.id}')">Отстранить</button>`:''}</div>`;}).join('');
+ <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift('${d.id}')">${d.onShift?'🟢 Снять со смены':'⚪ Поставить на смену'}</button>${profile.chief?`<button class="btn sm red" onclick="fireUser('${d.id}')">Отстранить</button>`:''}</div>`;}).join('');
  const showFired=!!(profile&&profile.chief);
  $('firedHdr').classList.toggle('hidden',!showFired);
  const fired=showFired?Object.entries(USERS).filter(([id,u])=>u&&u.status==='fired'):[];
