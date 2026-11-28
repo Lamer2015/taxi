@@ -1045,7 +1045,7 @@ const ROUTES_RAW=[
 ["двухэтаж","лодки",150]
 ];
 ROUTES.length=0;for(const _r of ROUTES_RAW)ROUTES.push(_r);
-ROUTES.forEach(r=>{if(+r[2]===150)r[2]=200;});/* цены 150 ₽ в базе подняты до 200 ₽ по решению руководителя */
+ROUTES.forEach(r=>{r[2]=(+r[2]||0)+50;});/* фактическая цена заказа = цена из базы + 50 ₽ (в базе — цены, от которых считается комиссия руководителю) */
 const DRV_DEDUCT=50;/* с цены заказа вычитается 50 ₽ до расчёта комиссии руководителя (скидка пенсионеру) */
 function drvCommission(o,rate){return Math.round(Math.max(0,(+o.price||0)-DRV_DEDUCT)*rate/100);}
 function drvPay(o,rate){return Math.round(+o.price||0)-drvCommission(o,rate);}
@@ -1111,7 +1111,7 @@ function orderCard(o,isDrv){
  h+=`<div class="oline"><span>💵 ${o.price?esc(o.price)+' ₽':''} · ${o.type}</span></div>`;
  if(isDrv&&o.status==='done'){const rr=(d&&+d.rate)||13,c=drvCommission(o,rr);h+=`<div class="oline" style="color:#8b93a7"><span>вам: ${Math.round(+o.price||0)-c} ₽</span></div>`;}
  if(o.accT&&o.status!=='done'&&o.status!=='dec')h+=`<div class="accline">принял в ${fmtT(o.accT)}${o.wayT?' · выехал в '+fmtT(o.wayT):''}</div>`;
- if(o.eta&&o.status!=='done'&&o.status!=='dec')h+=`<div class="eta">⏱ приедет через ~${o.eta} мин</div>`;
+ if(o.eta&&o.status==='acc')h+=`<div class="eta">⏱ приедет через ~${o.eta} мин</div>`,h+=`<div class="accline">сейчас: принял — ожидает клиента</div>`;
  if(isDrv){
  const etaBtns=[5,7,10,15,20,25,30].map(m=>`<button class="${o.eta===m?'on':''}" onclick="acceptEta(${o.id},${m})">через ${m} мин</button>`).join('');
  if(o.status==='new'){
