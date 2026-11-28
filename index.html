@@ -392,12 +392,27 @@ function expandDrv(id){expandedDrv=(String(expandedDrv)===String(id))?null:id;re
 function drvHist(d){
  const mine=S.orders.filter(o=>String(o.drvId)===String(d.id)&&o.status==='done').sort((a,b)=>(b.doneT||b.created)-(a.doneT||a.created));
  if(!mine.length)return '<div class="card" style="color:#8b93a7">Выполненных заказов пока нет</div>';
- const tot=mine.reduce((s,o)=>s+(+o.price||0)*0.5,0);
- return '<div class="card" style="margin-top:8px"><div class="h2">Выполненные заказы</div>'+mine.map(o=>`<div class="stat"><span>${fmtD(o.doneT||o.created)} · ${esc(o.from)} → ${esc(o.to)}</span><b>${Math.round((+o.price||0)*0.5)} ₽</b></div>`).join('')+`<div class="stat"><span>Итого водителю (50%)</span><b>${Math.round(tot)} ₽</b></div></div>`;
+ const rate=(+d.rate||13);
+ const tot=mine.reduce((s,o)=>s+(+o.price||0)*rate/100,0);
+ return '<div class="card" style="margin-top:8px"><div class="h2">Выполненные заказы</div>'+mine.map(o=>`<div class="stat"><span>${fmtD(o.doneT||o.created)} · ${esc(o.from)} → ${esc(o.to)}</span><b>${Math.round((+o.price||0)*rate/100)} ₽</b></div>`).join('')+`<div class="stat"><span>Итого водителю (${rate}%)</span><b>${Math.round(tot)} ₽</b></div></div>`;
 }
 
 /* ---- водители ---- */
 function toggleShift(id){const d=S.drivers.find(x=>String(x.id)===String(id));if(!d)return;d.onShift=!d.onShift;save();}
+function clearMyHist(){
+ if(role!=='drv')return;
+ const d=S.drivers.find(x=>String(x.id)===String(uid));if(!d)return;
+ d.histClear=Date.now();save();
+}
+function setRate(id){
+ if(!profile||!profile.chief)return;
+ const d=S.drivers.find(x=>String(x.id)===String(id));if(!d)return;
+ const s=prompt('Процент водителя от заказа, %:',d.rate||13);
+ if(s===null)return;
+ const v=parseFloat(s.replace(',','.'));
+ if(isNaN(v)||v<0||v>100){alert('Введите число от 0 до 100');return;}
+ d.rate=v;save();
+}
 function delDrv(id){S.drivers=S.drivers.filter(x=>String(x.id)!==String(id));save();}
 
 /* ---- заказы ---- */
@@ -499,6 +514,7 @@ function orderCard(o,isDrv){
  h+=`<div class="oline"><span>🚗 ${d?esc(d.name)+(d.carNum?' №'+d.carNum:''):'— не назначен —'}</span>${o.status==='done'&&o.doneT?`<span>✅ выполнено в ${fmtT(o.doneT)}</span>`:''}</div>`;
  h+=`<div class="oline"><span>📞 ${o.phone?`<a class="link" href="tel:${o.phone}">${esc(o.phone)}</a>`:'—'}</span></div>`;
  h+=`<div class="oline"><span>💵 ${o.price?esc(o.price)+' ₽':''} · ${o.type}</span></div>`;
+ if(isDrv&&o.status==='done')h+=`<div class="oline" style="color:#8b93a7"><span>вам (${(d&&+d.rate)||13}%): ${Math.round((+o.price||0)*(((d&&+d.rate)||13)/100))} ₽</span></div>`;
  if(o.accT&&o.status!=='done'&&o.status!=='dec')h+=`<div class="accline">принял в ${fmtT(o.accT)}${o.wayT?' · выехал в '+fmtT(o.wayT):''}</div>`;
  if(o.eta&&o.status!=='done'&&o.status!=='dec')h+=`<div class="eta">⏱ приедет через ~${o.eta} мин</div>`;
  if(isDrv){
@@ -525,8 +541,11 @@ function render(){
  const d=S.drivers.find(x=>String(x.id)===String(uid));
  $('drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name)}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'-'}</a><br>🚗 ${esc(d.car)||'-'}${d.carNum?' №'+d.carNum:''}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'green':''}" onclick="toggleShift('${d.id}')">${d.onShift?'Сойти со смены':'Выйти на смену'}</button></div>`:`<div class="card">Ваш профиль ещё не привязан — подождите одобрения или обратитесь к диспетчеру.</div>`;
  const mine=S.orders.filter(o=>String(o.drvId)===String(uid)&&!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
- const fin=S.orders.filter(o=>String(o.drvId)===String(uid)&&['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created).slice(0,10);
- $('drvOrders').innerHTML='<div class="h2">Мои заказы</div>'+(mine.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет активных заказов</div>')+'<div class="h2">История</div>'+(fin.map(o=>orderCard(o,true)).join('')||'');
+ const finAll=S.orders.filter(o=>String(o.drvId)===String(uid)&&['done','dec'].includes(o.status)&&(!drv.histClear||(o.doneT||o.created)>drv.histClear)).sort((a,b)=>b.created-a.created);
+ const fin=finAll.slice(0,10);
+ const drvRate=(+drv.rate||13);
+ const doneSum=finAll.filter(o=>o.status==='done').reduce((s,o)=>s+(+o.price||0)*drvRate/100,0);
+ $('drvOrders').innerHTML='<div class="h2">Мои заказы</div>'+(mine.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет активных заказов</div>')+'<div class="h2">История (последние 10)</div>'+(fin.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет выполненных заказов</div>')+`<div class="stat" style="margin:8px 0"><span>Заработано (${drvRate}%):</span><b>${Math.round(doneSum)} ₽</b></div><button class="btn sm" onclick="clearMyHist()">🧹 Очистить историю</button>`;
  }
  if(role==='disp'){
  $('drvList').innerHTML=S.drivers.map(d=>{
@@ -541,6 +560,7 @@ function render(){
  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px">
  <button class="btn sm ${d.onShift?'green':''}" onclick="toggleShift('${d.id}')">${d.onShift?'🟢 Снять со смены':'⚪ Поставить на смену'}</button>
  <button class="btn sm" onclick="expandDrv('${d.id}')">📋 Заказы</button>
+ <button class="btn sm" onclick="setRate('${d.id}')">💵 ${(d.rate||13)}%</button>
  ${profile.chief?`<button class="btn sm red" style="margin-left:auto" onclick="fireUser('${d.id}')">Отстранить</button>`:''}
  </div>
  ${expandedDrv===String(d.id)?drvHist(d):''}</div>`;}).join('');
@@ -561,8 +581,8 @@ function render(){
  <div class="stat"><span>Выполнено</span><b>${allDone.length}</b></div>
  <div class="stat"><span>Отменено</span><b>${dec.length}</b></div>
  <div class="stat"><span>Выручка (все выполненные)</span><b>${allDone.reduce((s,o)=>s+(+o.price||0),0)} ₽</b></div>
- <div class="stat"><span>Водителям (50%)</span><b>${Math.round(allDone.reduce((s,o)=>s+(+o.price||0),0)/2)} ₽</b></div></div>`
- +S.drivers.map(d=>{const dd=allDone.filter(o=>String(o.drvId)===String(d.id));return `<div class="card"><b>${esc(d.name)}</b><div class="stat"><span>Выполнено</span><b>${dd.length}</b></div><div class="stat"><span>Заработок</span><b>${Math.round(dd.reduce((s,o)=>s+(+o.price||0),0)/2)} ₽</b></div></div>`;}).join('');
+ <div class="stat"><span>Водителям</span><b>${Math.round(allDone.reduce((s,o)=>{const dv=S.drivers.find(x=>String(x.id)===String(o.drvId));return s+(+o.price||0)*(((dv&&+dv.rate)||13)/100);},0))} ₽</b></div></div>`
+ +S.drivers.map(d=>{const dd=allDone.filter(o=>String(o.drvId)===String(d.id));return `<div class="card"><b>${esc(d.name)}</b><div class="stat"><span>Выполнено</span><b>${dd.length}</b></div><div class="stat"><span>Заработок</span><b>${Math.round(dd.reduce((s,o)=>s+(+o.price||0)*((+d.rate||13)/100),0))} ₽</b></div></div>`;}).join('');
  }
 }
 </script>
