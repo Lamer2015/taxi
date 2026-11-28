@@ -21,6 +21,7 @@ button:active{transform:scale(.95);filter:brightness(.85)}
 .btn{width:100%;padding:14px;border:0;border-radius:12px;background:#ffd54a;color:#1a1a1a;font-size:17px;font-weight:700;margin-top:10px}
 .btn.gray{background:#2c3347;color:#eee}
 .btn.red{background:#e05555;color:#fff}
+.btn.green{background:#3aa15f;color:#fff}
 .btn.sm{width:auto;padding:8px 14px;font-size:14px;margin:4px 4px 0 0;border-radius:8px}
 .err{color:#ff7b7b;text-align:center;margin-top:10px;min-height:20px}
 .ok{color:#7ee08a;text-align:center;margin-top:10px;min-height:20px}
@@ -184,7 +185,7 @@ const rootDb=firebase.database().ref('taxi_rozh');
 const usersDb=firebase.database().ref('taxi_users');
 
 let S=null,USERS={};
-let uid=null,profile=null,role=null,curPanel='orders',curWait=null;
+let uid=null,profile=null,role=null,curPanel='orders',curWait=null,expandedDrv=null;
 const $=id=>document.getElementById(id);
 function esc(s){return (s||'').replace(/</g,'&lt;');}
 function fmtT(ts){const d=new Date(ts);return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');}
@@ -387,6 +388,13 @@ function evsTxt(d){
  const evs=Object.values(u.events).sort((a,b)=>a.t-b.t);
  return 'История: '+evs.slice(-4).map(e=>fmtD(e.t)+' — '+e.act).join(' · ');
 }
+function expandDrv(id){expandedDrv=(String(expandedDrv)===String(id))?null:id;render();}
+function drvHist(d){
+ const mine=S.orders.filter(o=>String(o.drvId)===String(d.id)&&o.status==='done').sort((a,b)=>(b.doneT||b.created)-(a.doneT||a.created));
+ if(!mine.length)return '<div class="card" style="color:#8b93a7">Выполненных заказов пока нет</div>';
+ const tot=mine.reduce((s,o)=>s+(+o.price||0)*0.5,0);
+ return '<div class="card" style="margin-top:8px"><div class="h2">Выполненные заказы</div>'+mine.map(o=>`<div class="stat"><span>${fmtD(o.doneT||o.created)} · ${esc(o.from)} → ${esc(o.to)}</span><b>${Math.round((+o.price||0)*0.5)} ₽</b></div>`).join('')+`<div class="stat"><span>Итого водителю (50%)</span><b>${Math.round(tot)} ₽</b></div></div>`;
+}
 
 /* ---- водители ---- */
 function toggleShift(id){const d=S.drivers.find(x=>String(x.id)===String(id));if(!d)return;d.onShift=!d.onShift;save();}
@@ -515,7 +523,7 @@ function render(){
  if(!S||!role)return;
  if(role==='drv'){
  const d=S.drivers.find(x=>String(x.id)===String(uid));
- $('drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name)}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'-'}</a><br>🚗 ${esc(d.car)||'-'}${d.carNum?' №'+d.carNum:''}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'red':''}" onclick="toggleShift('${d.id}')">${d.onShift?'Сойти со смены':'Выйти на смену'}</button></div>`:`<div class="card">Ваш профиль ещё не привязан — подождите одобрения или обратитесь к диспетчеру.</div>`;
+ $('drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name)}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'-'}</a><br>🚗 ${esc(d.car)||'-'}${d.carNum?' №'+d.carNum:''}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'green':''}" onclick="toggleShift('${d.id}')">${d.onShift?'Сойти со смены':'Выйти на смену'}</button></div>`:`<div class="card">Ваш профиль ещё не привязан — подождите одобрения или обратитесь к диспетчеру.</div>`;
  const mine=S.orders.filter(o=>String(o.drvId)===String(uid)&&!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
  const fin=S.orders.filter(o=>String(o.drvId)===String(uid)&&['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created).slice(0,10);
  $('drvOrders').innerHTML='<div class="h2">Мои заказы</div>'+(mine.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет активных заказов</div>')+'<div class="h2">История</div>'+(fin.map(o=>orderCard(o,true)).join('')||'');
@@ -530,12 +538,16 @@ function render(){
  <div class="oline"><span>📞 ${d.phone?`<a class="link" href="tel:${d.phone}">${esc(d.phone)}</a>`:'—'}</span><span>🚗 ${esc(d.car)||'—'} ${esc(d.carNum)?'№'+esc(d.carNum):''}</span></div>
  <div class="oline"><span>Сегодня выполнено: ${dd.length} зак., ${earn} ₽</span></div>
  <div class="oline" style="color:#8b93a7"><span>${evsTxt(d)}</span></div>
- <button class="btn sm ${d.onShift?'red':''}" onclick="toggleShift('${d.id}')">${d.onShift?'🔴 Снять со смены':'⚪ Поставить на смену'}</button>
- ${profile.chief?`<button class="btn sm red" style="margin-left:10px" onclick="fireUser('${d.id}')">Отстранить</button>`:''}</div>`;}).join('');
+ <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px">
+ <button class="btn sm ${d.onShift?'green':''}" onclick="toggleShift('${d.id}')">${d.onShift?'🟢 Снять со смены':'⚪ Поставить на смену'}</button>
+ <button class="btn sm" onclick="expandDrv('${d.id}')">📋 Заказы</button>
+ ${profile.chief?`<button class="btn sm red" style="margin-left:auto" onclick="fireUser('${d.id}')">Отстранить</button>`:''}
+ </div>
+ ${expandedDrv===String(d.id)?drvHist(d):''}</div>`;}).join('');
  const showFired=!!(profile&&profile.chief);
  $('firedHdr').classList.toggle('hidden',!showFired);
  const fired=showFired?Object.entries(USERS).filter(([id,u])=>u&&u.status==='fired'):[];
- $('firedList').innerHTML=showFired?fired.map(([id,u])=>`<div class="card"><div class="oline"><span class="big">👤 ${esc(u.fio||'')}</span></div><div class="oline"><span>📞 ${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</span><span>🚗 ${esc(u.car||'')} ${esc(u.carNum||'')}</span></div><button class="btn sm" onclick="hireUser('${id}')">Вернуть в работу</button></div>`).join(''):'<div class="card" style="color:#8b93a7">Отстранённых нет</div>';
+ $('firedList').innerHTML=showFired?fired.map(([id,u])=>`<div class="card"><div class="oline"><span class="big">👤 ${esc(u.fio||'')}</span></div><div class="oline"><span>📞 ${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</span><span>🚗 ${esc(u.car||'')} ${esc(u.carNum||'')}</span></div><div style="display:flex;gap:8px;align-items:center"><button class="btn sm" onclick="expandDrv('${id}')">📋 Заказы</button><button class="btn sm" style="margin-left:auto" onclick="hireUser('${id}')">Вернуть в работу</button></div>${expandedDrv===String(id)?drvHist({id:id}):''}</div>`).join(''):'<div class="card" style="color:#8b93a7">Отстранённых нет</div>';
  const pend=Object.entries(USERS).filter(([id,u])=>u&&u.status==='pending');
  $('reqList').innerHTML=(profile&&profile.chief)?pend.map(([id,u])=>`<div class="card"><b>${esc(u.fio||u.email)}</b><div class="stat"><span>Роль</span><b>${u.role==='disp'?'диспетчер':'водитель'}</b></div><div class="stat"><span>Телефон</span><b>${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</b></div>${u.role==='drv'?`<div class="stat"><span>Машина</span><b>${esc(u.car||'—')} ${esc(u.carNum||'')}</b></div>`:''}<div class="stat"><span>Почта</span><b>${esc(u.email||'')}</b></div><div class="btnrow"><button class="btn" onclick="approveUser('${id}')">Одобрить</button><button class="btn red" onclick="rejectUser('${id}')">Отклонить</button></div></div>`).join(''):'<div class="card" style="color:#8b93a7">Новых заявок нет</div>';
  const act=S.orders.filter(o=>!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
