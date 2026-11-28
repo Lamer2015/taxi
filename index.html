@@ -236,7 +236,8 @@ function afterLogin(u){
  usersDb.child(u.uid).once('value').then(p=>{
  profile=p.val();
  if(!profile){profile={role:'drv',fio:'',phone:'',email:u.email,status:'pending'};usersDb.child(u.uid).set(profile);}
- if(!u.emailVerified&&profile.role!=='disp'){showWait('verify');return;}
+ // Проверка почты письмом не блокирует вход: письма Firebase плохо доходят до российских почтовых сервисов.
+ // Доступ по-прежнему контролирует одобрение диспетчера.
  if(profile.status==='rejected'){auth.signOut();showWait('rejected');return;}
  if(profile.status==='pending'){showWait('pending');return;}
  role=profile.role;
