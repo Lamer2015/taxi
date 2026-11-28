@@ -162,7 +162,7 @@ button:active{transform:scale(.95);filter:brightness(.85)}
  </div>
 
  <div id="p-history" class="panel hidden">
- <div style="display:flex;gap:8px;align-items:center"><div class="h2" style="margin:0">История заказов</div><button class="btn sm" id="btnHistTxt" style="margin-left:auto">⬇ Скачать TXT</button></div>
+ <div style="display:flex;gap:8px;align-items:center"><div class="h2" style="margin:0">История заказов</div><button class="btn sm" id="btnHistTxt" style="margin-left:auto">⬇ Скачать Word</button></div>
  <div id="histList"></div>
  </div>
 
@@ -349,26 +349,45 @@ function showPanel(p){
 }
 document.querySelectorAll('#mainTabs button').forEach(b=>b.onclick=()=>showPanel(b.dataset.t));
 $('drvTabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;$('drvTabs').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));const s=b.dataset.t==='drvs';$('drvSums').classList.toggle('hidden',!s);$('drvInfo').classList.toggle('hidden',s);$('drvOrders').classList.toggle('hidden',s);};
-function histTxt(){
+function histWord(){
  if(!S)return;
  const done=S.orders.filter(o=>['done','dec'].includes(o.status)).sort((a,b)=>(a.doneT||a.created)-(b.doneT||b.created));
  const byDay={};
  done.forEach(o=>{const k=fmtD(o.doneT||o.created);(byDay[k]=byDay[k]||[]).push(o);});
- let out='';
+ let body='';
  Object.keys(byDay).sort().forEach(k=>{
-  out+='\n=== '+k+' ===\n';
-  byDay[k].forEach(o=>{
+  const list=byDay[k];
+  let no=0,totP=0,totC=0;
+  const perDrv={};
+  const rows=list.map(o=>{
+   no++;
    const dv=S.drivers.find(x=>String(x.id)===String(o.drvId));
-   out+=fmtT(o.doneT||o.created)+'  '+(o.from||'—')+' → '+(o.to||'—')+'  ·  '+(o.type||'Поездка')+'  ·  водитель: '+(dv&&dv.name?dv.name:'—')+'  ·  '+(+o.price||0)+' ₽'+(o.status==='dec'?'  (ОТМЕНЁН)':'')+'\n';
-  });
+   const name=dv?dv.name:'—';
+   const rate=(dv&&+dv.rate)||13;
+   const c=drvCommission(o,rate);
+   const p=(+o.price||0);
+   totP+=p; totC+=c;
+   const pr=perDrv[name]=perDrv[name]||{n:0,p:0,c:0,rate};
+   pr.n++; pr.p+=p; pr.c+=c;
+   const note=[];
+   if(o.type&&o.type!=='Поездка')note.push(o.type);
+   if(o.comment)note.push(o.comment);
+   if(o.status==='dec')note.push('ОТМЕНЁН');
+   return `<tr><td>${no}</td><td>${esc(o.from||'—')} → ${esc(o.to||'—')}</td><td>${esc(name)}</td><td style="text-align:right">${Math.round(p)}</td><td style="text-align:right">${rate}%</td><td style="text-align:right">${c}</td><td>${esc(note.join('; '))}</td></tr>`;
+  }).join('');
+  body+=`<h2>Заказы за ${k}</h2><table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;font-family:Arial;font-size:11pt"><tr style="background:#fee600;font-weight:bold"><th>№</th><th>Маршрут</th><th>Водитель</th><th>Цена</th><th>Ставка</th><th>Комиссия</th><th>Примечание</th></tr>${rows}<tr style="font-weight:bold"><td colspan="3">ИТОГО</td><td style="text-align:right">${Math.round(totP)}</td><td></td><td style="text-align:right">${Math.round(totC*10)/10}</td><td></td></tr></table>`;
+  let sN=0,sP=0,sC=0;
+  const srows=Object.keys(perDrv).map(n=>{const p=perDrv[n];sN+=p.n;sP+=p.p;sC+=p.c;return `<tr><td>${esc(n)}</td><td style="text-align:right">${p.n}</td><td style="text-align:right">${Math.round(p.p)}</td><td style="text-align:right">${p.rate}%</td><td style="text-align:right">${Math.round(p.c*10)/10}</td></tr>`;}).join('');
+  body+=`<p><b>Сводка по водителям за ${k}</b></p><table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;font-family:Arial;font-size:11pt"><tr style="background:#fee600;font-weight:bold"><th>Водитель</th><th>Заказов</th><th>Заработок</th><th>Ставка</th><th>Комиссия</th></tr>${srows}<tr style="font-weight:bold"><td>ИТОГО</td><td style="text-align:right">${sN}</td><td style="text-align:right">${Math.round(sP)}</td><td></td><td style="text-align:right">${Math.round(sC*10)/10}</td></tr></table><br>`;
  });
- const blob=new Blob(['\ufeff'+out],{type:'text/plain;charset=utf-8'});
+ const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>Заказы</title></head><body style="font-family:Arial">${body}</body></html>`;
+ const blob=new Blob(['\ufeff'+html],{type:'application/msword'});
  const a=document.createElement('a');
  a.href=URL.createObjectURL(blob);
- a.download='история_заказов_'+(new Date()).toISOString().slice(0,10)+'.txt';
+ a.download='заказы_'+(new Date()).toISOString().slice(0,10)+'.doc';
  document.body.appendChild(a);a.click();a.remove();
 }
-$('btnHistTxt').onclick=histTxt;
+$('btnHistTxt').onclick=histWord;
 
 /* ---- вкладки вход/регистрация ---- */
 $('tabIn').onclick=()=>{$('tabIn').classList.add('on');$('tabReg').classList.remove('on');$('loginForm').classList.remove('hidden');$('regForm').classList.add('hidden');$('authSub').textContent='Вход в систему';$('authErr').textContent='';};
