@@ -289,6 +289,7 @@ let waitMsg='';
 function retried(fn,tries,delay){tries=tries===undefined?5:tries;delay=delay||3000;
  return fn().catch(e=>{if(tries<=0)throw e;return new Promise(r=>setTimeout(r,delay)).then(()=>retried(fn,tries-1,delay));});}
 function afterLogin(u){
+ uid=u.uid;
  retried(()=>usersDb.child(u.uid).once('value')).then(p=>p.val()).catch(()=>retried(()=>restGet('taxi_users/'+u.uid),2).then(v=>{useRest=true;startRestPoll();return v;})).then(p=>{
  profile=p;
  if(!profile){profile={role:'drv',fio:'',phone:'',email:u.email,status:'pending'};usersDb.child(u.uid).set(profile);}
@@ -300,7 +301,7 @@ function afterLogin(u){
  role=profile.role;
  retried(()=>rootDb.once('value')).then(sn=>sn.val()).catch(()=>retried(()=>restGet('taxi_rozh'),2).then(v=>{useRest=true;startRestPoll();return v;})).then(data=>{
  S=Object.assign({drivers:[],orders:[]},data||{});delete S.pass;delete S.fb;norm();
- if(role==='drv'&&profile.status==='ok'&&!S.drivers.some(d=>String(d.id)===String(uid))){
+ if(role==='drv'&&profile.status==='ok'&&uid&&!S.drivers.some(d=>String(d.id)===String(uid))){
  S.drivers.push({id:uid,uid:uid,name:profile.fio||'',phone:profile.phone||'',car:profile.car||'',carNum:profile.carNum||'',onShift:false});save();
  }
  enterApp();
@@ -1044,7 +1045,8 @@ const ROUTES_RAW=[
 ["двухэтаж","лодки",150]
 ];
 ROUTES.length=0;for(const _r of ROUTES_RAW)ROUTES.push(_r);
-const DRV_DEDUCT=50;/* с цены заказа вычитается 50 ₽ до расчёта комиссии руководителя */
+ROUTES.forEach(r=>{if(+r[2]===150)r[2]=200;});/* цены 150 ₽ в базе подняты до 200 ₽ по решению руководителя */
+const DRV_DEDUCT=50;/* с цены заказа вычитается 50 ₽ до расчёта комиссии руководителя (скидка пенсионеру) */
 function drvCommission(o,rate){return Math.round(Math.max(0,(+o.price||0)-DRV_DEDUCT)*rate/100);}
 function drvPay(o,rate){return Math.round(+o.price||0)-drvCommission(o,rate);}
 function normQ(s){return (s||'').toLowerCase().replace(/ё/g,'е').replace(/[^а-яa-z0-9]/g,'');}
@@ -1069,7 +1071,7 @@ function routePrice(){
   if(isW(d)&&!isW(s))return s===nf||s===nt;
   return false;});
  if(soft)return {p:soft[2],note:'по базе'};
- return {p:150,note:'стандарт села'};
+ return {p:200,note:'стандарт села'};
 }
 function updatePriceSuggest(){
  const h=$('priceHint');if(!h)return;
@@ -1107,7 +1109,7 @@ function orderCard(o,isDrv){
  h+=`<div class="oline"><span>🚗 ${d?esc(d.name)+(d.carNum?' №'+d.carNum:''):'— не назначен —'}</span>${o.status==='done'&&o.doneT?`<span>✅ выполнено в ${fmtT(o.doneT)}</span>`:''}</div>`;
  h+=`<div class="oline"><span>📞 ${o.phone?`<a class="link" href="tel:${o.phone}">${esc(o.phone)}</a>`:'—'}</span></div>`;
  h+=`<div class="oline"><span>💵 ${o.price?esc(o.price)+' ₽':''} · ${o.type}</span></div>`;
- if(isDrv&&o.status==='done'){const rr=(d&&+d.rate)||13,c=drvCommission(o,rr);h+=`<div class="oline" style="color:#8b93a7"><span>вам: ${Math.round(+o.price||0)-c} ₽ · комиссия (${rr}%): ${c} ₽</span></div>`;}
+ if(isDrv&&o.status==='done'){const rr=(d&&+d.rate)||13,c=drvCommission(o,rr);h+=`<div class="oline" style="color:#8b93a7"><span>вам: ${Math.round(+o.price||0)-c} ₽</span></div>`;}
  if(o.accT&&o.status!=='done'&&o.status!=='dec')h+=`<div class="accline">принял в ${fmtT(o.accT)}${o.wayT?' · выехал в '+fmtT(o.wayT):''}</div>`;
  if(o.eta&&o.status!=='done'&&o.status!=='dec')h+=`<div class="eta">⏱ приедет через ~${o.eta} мин</div>`;
  if(isDrv){
