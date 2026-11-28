@@ -122,13 +122,14 @@ button:active{transform:scale(.95);filter:brightness(.85)}
  <div class="tabs" id="mainTabs">
  <button data-t="orders" class="on">Заказы</button>
  <button data-t="drivers">Водители</button>
+ <button data-t="history">История</button>
  <button data-t="requests" id="tabRequests">Заявки</button>
  <button data-t="summary">Сводка</button>
  </div>
 
  <div id="p-orders" class="panel">
  <button class="btn" id="btnNewOrder">＋ Новый заказ</button>
- <div id="newOrderForm" class="hidden card" style="margin-top:10px">
+ <div id="newOrderForm" class="card" style="margin-top:10px">
  <div class="h2">Новый заказ</div>
  <input id="oPhone" placeholder="Телефон клиента" inputmode="tel">
  <input id="oFrom" placeholder="Откуда забрать">
@@ -158,10 +159,11 @@ button:active{transform:scale(.95);filter:brightness(.85)}
  </div>
  <div class="h2">Активные</div>
  <div id="activeList"></div>
- <div class="h2">Выполнено сегодня (с указанием времени)</div>
- <div id="doneList"></div>
- <div class="h2">Отмененные за день</div>
- <div id="decList"></div>
+ </div>
+
+ <div id="p-history" class="panel hidden">
+ <div class="h2">История заказов</div>
+ <div id="histList"></div>
  </div>
 
  <div id="p-drivers" class="panel hidden">
@@ -328,7 +330,7 @@ $('btnLogout').onclick=()=>auth.signOut();
 function showPanel(p){
  if(p==='requests'&&!(profile&&profile.chief))p='orders';
  curPanel=p;
- ['orders','drivers','requests','summary'].forEach(x=>$('p-'+x).classList.toggle('hidden',x!==p||role!=='disp'));
+ ['orders','drivers','requests','summary','history'].forEach(x=>$('p-'+x).classList.toggle('hidden',x!==p||role!=='disp'));
  $('tabRequests').classList.toggle('hidden',!(profile&&profile.chief));
  $('p-driver').classList.toggle('hidden',role!=='drv');
  document.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===p));
@@ -433,7 +435,7 @@ function drvHist(d){
  const rate=(+d.rate||13);
  const tot=mine.reduce((s,o)=>s+(+o.price||0)-drvCommission(o,rate),0);
  const comm=mine.reduce((s,o)=>s+drvCommission(o,rate),0);
- return '<div class="card" style="margin-top:8px"><div class="h2">Выполненные заказы</div>'+mine.map(o=>`<div class="stat"><span>${fmtD(o.doneT||o.created)} · ${esc(o.from)} → ${esc(o.to)}</span><b>${Math.round((+o.price||0)-drvCommission(o,rate))} ₽</b></div>`).join('')+`<div class="stat"><span>Итого водителю</span><b>${Math.round(tot)} ₽</b></div><div class="stat"><span>Комиссия руководителю (${rate}%)</span><b>${Math.round(comm)} ₽</b></div></div>`;
+ return '<div class="card" style="margin-top:8px"><div class="h2">Выполненные заказы</div>'+mine.map(o=>`<div class="stat"><span>${fmtD(o.doneT||o.created)} · ${esc(o.from)} → ${esc(o.to)}</span><b>${Math.round((+o.price||0)-drvCommission(o,rate))} ₽</b></div>`).join('')+`<div class="stat"><span>Итого водителю</span><b>${Math.round(tot)} ₽</b></div>`+(profile&&profile.chief?`<div class="stat"><span>Комиссия руководителю (${rate}%)</span><b>${Math.round(comm)} ₽</b></div>`:'')+'</div>';
 }
 
 /* ---- водители ---- */
@@ -442,6 +444,14 @@ function clearMyHist(){
  if(role!=='drv')return;
  const d=S.drivers.find(x=>String(x.id)===String(uid));if(!d)return;
  d.histClear=Date.now();save();
+}
+function resetDrv(id){
+ if(!profile||!profile.chief)return;
+ const d=S.drivers.find(x=>String(x.id)===String(id));if(!d)return;
+ if(!confirm('Сбросить накопления водителя «'+(d.name||'')+'» (заработок и комиссия к оплате обнулятся, новый счёт начнётся с нуля)?\n\nИстория заказов у руководителя сохранится полностью.'))return;
+ d.histClear=Date.now();
+ try{if(USERS[id])usersDb.child(id+'/events').push({t:Date.now(),act:'расчёт с руководителем — накопления сброшены'});}catch(e){}
+ save();
 }
 function setRate(id){
  if(!profile||!profile.chief)return;
@@ -455,7 +465,7 @@ function setRate(id){
 function delDrv(id){S.drivers=S.drivers.filter(x=>String(x.id)!==String(id));save();}
 
 /* ---- заказы ---- */
-$('btnNewOrder').onclick=()=>{$('newOrderForm').classList.remove('hidden');fillOrderDrvSel();};
+$('btnNewOrder').onclick=()=>{const f=$('newOrderForm');const wasHidden=f.classList.contains('hidden');if(wasHidden){f.classList.remove('hidden');fillOrderDrvSel();}else{f.classList.add('hidden');}};
 $('oCancel').onclick=()=>$('newOrderForm').classList.add('hidden');
 function busyIds(){return S.orders.filter(o=>o.drvId&&(o.status==='new'||o.status==='acc'||o.status==='way')).map(o=>String(o.drvId));}
 function drvLbl(d,bs){return d.name+(d.carNum?' · №'+d.carNum:'')+(d.onShift?'':' (не на смене)')+(bs.includes(String(d.id))?' (занят)':'');}
@@ -1117,7 +1127,7 @@ function orderCard(o,isDrv){
  h+=`<div class="oline"><span>🚗 ${d?esc(d.name)+(d.carNum?' №'+d.carNum:''):'— не назначен —'}</span>${o.status==='done'&&o.doneT?`<span>✅ выполнено в ${fmtT(o.doneT)}</span>`:''}</div>`;
  h+=`<div class="oline"><span>📞 ${o.phone?`<a class="link" href="tel:${o.phone}">${esc(o.phone)}</a>`:'—'}</span></div>`;
  h+=`<div class="oline"><span>💵 ${o.price?esc(o.price)+' ₽':''} · ${o.type}</span></div>`;
- if(isDrv&&o.status==='done'){const rr=(d&&+d.rate)||13,c=drvCommission(o,rr);h+=`<div class="oline" style="color:#8b93a7"><span>вам: ${Math.round(+o.price||0)-c} ₽ · по процентам: ${c} ₽</span></div>`;}
+ if(isDrv&&o.status==='done'){const rr=(d&&+d.rate)||13,c=drvCommission(o,rr);h+=`<div class="oline" style="color:#8b93a7"><span>вам: ${Math.round(+o.price||0)-c} ₽ · комиссия: ${c} ₽</span></div>`;}
  if(o.accT&&o.status!=='done'&&o.status!=='dec')h+=`<div class="accline">принял в ${fmtT(o.accT)}${o.wayT?' · выехал в '+fmtT(o.wayT):''}</div>`;
  if(o.eta&&o.status==='acc')h+=`<div class="eta">⏱ приедет через ~${o.eta} мин</div>`,h+=`<div class="accline">сейчас: принял — ожидает клиента</div>`;
  if(isDrv){
@@ -1149,7 +1159,7 @@ function render(){
  const drvRate=(+((d&&d.rate))||13);
  const doneSum=finAll.filter(o=>o.status==='done').reduce((s,o)=>s+(+o.price||0)-drvCommission(o,drvRate),0);
  const commSum=finAll.filter(o=>o.status==='done').reduce((s,o)=>s+drvCommission(o,drvRate),0);
- $('drvOrders').innerHTML='<div class="h2">Мои заказы</div>'+(mine.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет активных заказов</div>')+'<div class="h2">История (последние 10)</div>'+(fin.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет выполненных заказов</div>')+`<div class="stat" style="margin:8px 0"><span>Заработано:</span><b>${Math.round(doneSum)} ₽</b></div><div class="stat" style="margin:0 0 8px"><span>Долг по процентам (${drvRate}%):</span><b style="color:#ff8a8a">${Math.round(commSum)} ₽</b></div><button class="btn sm" onclick="clearMyHist()">🧹 Очистить историю</button>`;
+ $('drvOrders').innerHTML='<div class="h2">Мои заказы</div>'+(mine.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет активных заказов</div>')+'<div class="h2">История (последние 10)</div>'+(fin.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет выполненных заказов</div>')+`<div class="stat" style="margin:8px 0"><span>Заработано:</span><b>${Math.round(doneSum)} ₽</b></div><div class="stat" style="margin:0 0 8px"><span>Комиссия к оплате:</span><b style="color:#ff8a8a">${Math.round(commSum)} ₽</b></div><button class="btn sm" onclick="clearMyHist()">🧹 Очистить историю</button>`;
  }
  if(role==='disp'){
  $('drvList').innerHTML=S.drivers.map(d=>{
@@ -1163,31 +1173,31 @@ function render(){
  <div class="oline" style="color:#8b93a7"><span>${evsTxt(d)}</span></div>
  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px">
  <button class="btn sm ${d.onShift?'green':''}" onclick="toggleShift('${d.id}')">${d.onShift?'🟢 Снять со смены':'⚪ Поставить на смену'}</button>
- <button class="btn sm" onclick="expandDrv('${d.id}')">📋 Заказы</button>
- <button class="btn sm" onclick="setRate('${d.id}')">💵 ${(d.rate||13)}%</button>
+ <button class="btn sm" onclick="expandDrv('${d.id}')">📄 История</button>
+ ${profile.chief?`<button class="btn sm" onclick="setRate('${d.id}')">💵 ${(d.rate||13)}%</button>`:''}
+ ${profile.chief?`<button class="btn sm gray" onclick="resetDrv('${d.id}')">🔄 Сброс</button>`:''}
  ${profile.chief?`<button class="btn sm red" style="margin-left:auto" onclick="fireUser('${d.id}')">Отстранить</button>`:''}
  </div>
  ${expandedDrv===String(d.id)?drvHist(d):''}</div>`;}).join('');
  const showFired=!!(profile&&profile.chief);
  $('firedHdr').classList.toggle('hidden',!showFired);
  const fired=showFired?Object.entries(USERS).filter(([id,u])=>u&&u.status==='fired'):[];
- $('firedList').innerHTML=showFired?fired.map(([id,u])=>`<div class="card"><div class="oline"><span class="big">👤 ${esc(u.fio||'')}</span></div><div class="oline"><span>📞 ${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</span><span>🚗 ${esc(u.car||'')} ${esc(u.carNum||'')}</span></div><div style="display:flex;gap:8px;align-items:center"><button class="btn sm" onclick="expandDrv('${id}')">📋 Заказы</button><button class="btn sm" style="margin-left:auto" onclick="hireUser('${id}')">Вернуть в работу</button></div>${expandedDrv===String(id)?drvHist({id:id}):''}</div>`).join(''):'<div class="card" style="color:#8b93a7">Отстранённых нет</div>';
+ $('firedList').innerHTML=showFired?fired.map(([id,u])=>`<div class="card"><div class="oline"><span class="big">👤 ${esc(u.fio||'')}</span></div><div class="oline"><span>📞 ${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</span><span>🚗 ${esc(u.car||'')} ${esc(u.carNum||'')}</span></div><div style="display:flex;gap:8px;align-items:center"><button class="btn sm" onclick="expandDrv('${id}')">📄 История</button><button class="btn sm" style="margin-left:auto" onclick="hireUser('${id}')">Вернуть в работу</button></div>${expandedDrv===String(id)?drvHist({id:id}):''}</div>`).join(''):'<div class="card" style="color:#8b93a7">Отстранённых нет</div>';
  const pend=Object.entries(USERS).filter(([id,u])=>u&&u.status==='pending');
  $('reqList').innerHTML=(profile&&profile.chief)?pend.map(([id,u])=>`<div class="card"><b>${esc(u.fio||u.email)}</b><div class="stat"><span>Роль</span><b>${u.role==='disp'?'диспетчер':'водитель'}</b></div><div class="stat"><span>Телефон</span><b>${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</b></div>${u.role==='drv'?`<div class="stat"><span>Машина</span><b>${esc(u.car||'—')} ${esc(u.carNum||'')}</b></div>`:''}<div class="stat"><span>Почта</span><b>${esc(u.email||'')}</b></div><div class="btnrow"><button class="btn" onclick="approveUser('${id}')">Одобрить</button><button class="btn red" onclick="rejectUser('${id}')">Отклонить</button></div></div>`).join(''):'<div class="card" style="color:#8b93a7">Новых заявок нет</div>';
  const act=S.orders.filter(o=>!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
- const done=S.orders.filter(o=>o.status==='done'&&o.doneT&&new Date(o.doneT).toDateString()===new Date().toDateString()).sort((a,b)=>b.doneT-a.doneT);
+ const done=S.orders.filter(o=>o.status==='done'||o.status==='dec').sort((a,b)=>(b.doneT||b.created)-(a.doneT||a.created));
  const dec=S.orders.filter(o=>o.status==='dec'&&new Date(o.created).toDateString()===new Date().toDateString());
  $('activeList').innerHTML=act.map(o=>orderCard(o,false)).join('')||'<div class="card" style="color:#8b93a7">Нет активных заказов</div>';
- $('doneList').innerHTML=done.map(o=>orderCard(o,false)).join('')||'<div class="card" style="color:#8b93a7">Пока ничего не выполнено</div>';
- $('decList').innerHTML=dec.map(o=>orderCard(o,false)).join('');
+ $('histList').innerHTML=done.map(o=>orderCard(o,false)).join('')||'<div class="card" style="color:#8b93a7">История пуста</div>';
  const allDone=S.orders.filter(o=>o.status==='done');
  $('summaryBox').innerHTML=`<div class="card"><div class="stat"><span>Принятые заказы</span><b>${S.orders.filter(o=>o.status!=='dec').length}</b></div>
  <div class="stat"><span>Выполнено</span><b>${allDone.length}</b></div>
  <div class="stat"><span>Отменено</span><b>${dec.length}</b></div>
  <div class="stat"><span>Выручка (все выполненные)</span><b>${allDone.reduce((s,o)=>s+(+o.price||0),0)} ₽</b></div>
  <div class="stat"><span>Водителям</span><b>${Math.round(allDone.reduce((s,o)=>{const dv=S.drivers.find(x=>String(x.id)===String(o.drvId));return s+(+o.price||0)-drvCommission(o,(dv&&+dv.rate)||13);},0))} ₽</b></div>
- <div class="stat"><span>Комиссия руководителю</span><b>${Math.round(allDone.reduce((s,o)=>{const dv=S.drivers.find(x=>String(x.id)===String(o.drvId));return s+drvCommission(o,(dv&&+dv.rate)||13);},0))} ₽</b></div></div>`
- +S.drivers.map(d=>{const dd=allDone.filter(o=>String(o.drvId)===String(d.id));return `<div class="card"><b>${esc(d.name)}</b><div class="stat"><span>Выполнено</span><b>${dd.length}</b></div><div class="stat"><span>Комиссия руководителю (${+d.rate||13}%)</span><b>${Math.round(dd.reduce((s,o)=>s+drvCommission(o,+d.rate||13),0))} ₽</b></div><div class="stat"><span>Водителю</span><b>${Math.round(dd.reduce((s,o)=>s+(+o.price||0)-drvCommission(o,+d.rate||13),0))} ₽</b></div></div>`;}).join('');
+ ${profile.chief?`<div class="stat"><span>Комиссия руководителю</span><b>${Math.round(allDone.reduce((s,o)=>{const dv=S.drivers.find(x=>String(x.id)===String(o.drvId));return s+drvCommission(o,(dv&&+dv.rate)||13);},0))} ₽</b></div>`:''}</div>`
+ +S.drivers.map(d=>{const dd=allDone.filter(o=>String(o.drvId)===String(d.id));return `<div class="card"><b>${esc(d.name)}</b><div class="stat"><span>Выполнено</span><b>${dd.length}</b></div>${profile.chief?`<div class="stat"><span>Комиссия руководителю (${+d.rate||13}%)</span><b>${Math.round(dd.reduce((s,o)=>s+drvCommission(o,+d.rate||13),0))} ₽</b></div>`:''}<div class="stat"><span>Водителю</span><b>${Math.round(dd.reduce((s,o)=>s+(+o.price||0)-drvCommission(o,+d.rate||13),0))} ₽</b></div></div>`;}).join('');
  }
 }
 </script>
