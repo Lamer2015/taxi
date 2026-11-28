@@ -283,7 +283,7 @@ function enterApp(){
  $('mainTabs').classList.toggle('hidden',!isDisp);
  if(isDisp){$('roleLbl').textContent='Диспетчерская';showPanel('orders');}
  else{$('roleLbl').textContent=profile.fio||'Водитель';showPanel('driver');}
- if('Notification' in window)$('btnNotify').classList.toggle('hidden',Notification.permission==='granted');
+ if('Notification' in window)updateNotifBtn();
  lastNotif=null;
  render();
 }
@@ -471,14 +471,23 @@ function notify(title,body){
  try{beep();}catch(e){}
  if(Notification.permission==='granted'){
  try{new Notification(title,{body});}catch(e){}
- }else if(Notification.permission==='default'){$('btnNotify').classList.remove('hidden');}
+ }else if(Notification.permission==='default'){updateNotifBtn();}
 }
 $('btnNotify').onclick=()=>{
  if(!('Notification' in window))return;
  Notification.requestPermission().then(p=>{
- if(p==='granted'){$('btnNotify').classList.add('hidden');notify('✅ Готово','Уведомления включены');}
+  if(p==='granted')notify('✅ Готово','Уведомления включены');
+  updateNotifBtn();
  });
 };
+function updateNotifBtn(){
+ if(!('Notification' in window))return;
+ const b=$('btnNotify');
+ b.classList.remove('hidden');
+ if(Notification.permission==='granted'){b.classList.remove('gray');b.classList.add('green');b.textContent='🔔 Уведомления включены';b.disabled=true;}
+ else if(Notification.permission==='denied'){b.classList.remove('green');b.classList.add('gray');b.textContent='🔕 Уведомления запрещены в браузере';b.disabled=true;}
+ else{b.classList.remove('green');b.classList.remove('gray');b.textContent='🔔 Включить уведомления';b.disabled=false;}
+}
 function syncNotifs(){
  if(!S||!uid)return;
  const cur={};S.orders.forEach(o=>cur[String(o.id)]=o.status);
