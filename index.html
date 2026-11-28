@@ -429,12 +429,21 @@ function evsTxt(d){
 }
 function expandDrv(id){expandedDrv=(String(expandedDrv)===String(id))?null:id;render();}
 function drvHist(d){
- const mine=S.orders.filter(o=>String(o.drvId)===String(d.id)&&o.status==='done').sort((a,b)=>(b.doneT||b.created)-(a.doneT||a.created));
- if(!mine.length)return '<div class="card" style="color:#8b93a7">Выполненных заказов пока нет</div>';
+ const all=S.orders.filter(o=>String(o.drvId)===String(d.id)&&o.status==='done').sort((a,b)=>(b.doneT||b.created)-(a.doneT||a.created));
+ if(!all.length)return '<div class="card" style="color:#8b93a7">Выполненных заказов пока нет</div>';
  const rate=(+d.rate||13);
- const tot=mine.reduce((s,o)=>s+(+o.price||0)-drvCommission(o,rate),0);
- const comm=mine.reduce((s,o)=>s+drvCommission(o,rate),0);
- return '<div class="card" style="margin-top:8px"><div class="h2">Выполненные заказы</div>'+mine.map(o=>`<div class="stat"><span>${fmtD(o.doneT||o.created)} · ${esc(o.from)} → ${esc(o.to)}</span><b>${Math.round((+o.price||0)-drvCommission(o,rate))} ₽</b></div>`).join('')+`<div class="stat"><span>Итого водителю</span><b>${Math.round(tot)} ₽</b></div>`+(profile&&profile.chief?`<div class="stat"><span>Комиссия руководителю (${rate}%)</span><b>${Math.round(comm)} ₽</b></div>`:'')+'</div>';
+ const hc=d.histClear||0;
+ const cur=hc?all.filter(o=>(o.doneT||o.created)>hc):all;
+ const pre=hc?all.filter(o=>(o.doneT||o.created)<=hc):[];
+ const tot=cur.reduce((s,o)=>s+(+o.price||0)-drvCommission(o,rate),0);
+ const comm=cur.reduce((s,o)=>s+drvCommission(o,rate),0);
+ const pTot=pre.reduce((s,o)=>s+(+o.price||0)-drvCommission(o,rate),0);
+ const pComm=pre.reduce((s,o)=>s+drvCommission(o,rate),0);
+ let h='<div class="card" style="margin-top:8px"><div class="h2">Выполненные заказы</div>';
+ if(!cur.length)h+='<div class="card" style="color:#8b93a7">После последнего расчёта заказов нет</div>';
+ else h+=cur.map(o=>`<div class="stat"><span>${fmtD(o.doneT||o.created)} · ${esc(o.from)} → ${esc(o.to)}</span><b>${Math.round((+o.price||0)-drvCommission(o,rate))} ₽</b></div>`).join('')+`<div class="stat"><span>Итого водителю (с последнего расчёта)</span><b>${Math.round(tot)} ₽</b></div>`+(profile&&profile.chief?`<div class="stat"><span>Комиссия руководителю (${rate}%)</span><b>${Math.round(comm)} ₽</b></div>`:'');
+ if(pre.length)h+=`<div class="stat"><span>Ранее, до расчёта ${fmtD(hc)} ${fmtT(hc)}: ${pre.length} зак.</span><b>${Math.round(pTot)} ₽${profile&&profile.chief?' · комиссия '+Math.round(pComm)+' ₽':''}</b></div>`;
+ return h+'</div>';
 }
 
 /* ---- водители ---- */
@@ -1165,11 +1174,18 @@ function render(){
  $('drvList').innerHTML=S.drivers.map(d=>{
  const dd=S.orders.filter(o=>String(o.drvId)===String(d.id)&&o.status==='done');
  const earn=dd.reduce((s,o)=>s+(+o.price||0),0);
+ const hc=d.histClear||0;
+ const hcD=hc?fmtD(hc):'';
+ const hcT=hc?fmtT(hc):'';
+ const wk=S.orders.filter(o=>String(o.drvId)===String(d.id)&&o.status==='done'&&(!hc||(o.doneT||o.created)>hc));
+ const wkPay=wk.reduce((s,o)=>s+(+o.price||0)-drvCommission(o,(+d.rate||13)),0);
+ const wkComm=wk.reduce((s,o)=>s+drvCommission(o,(+d.rate||13)),0);
  const busy=S.orders.find(o=>String(o.drvId)===String(d.id)&&(o.status==='acc'||o.status==='way'));
  return `<div class="card"><div class="oline"><span class="big">👤 ${esc(d.name)} ${d.carNum?'№'+esc(d.carNum):''}</span><span class="pill ${busy?'p-dec':(d.onShift?'p-acc':'p-new')}">${busy?'занят':(d.onShift?'на смене':'не на смене')}</span></div>
  ${busy?`<div class="oline"><span>🚕 сейчас везёт: ${esc(busy.from)} → ${esc(busy.to)}</span></div>`:''}
  <div class="oline"><span>📞 ${d.phone?`<a class="link" href="tel:${d.phone}">${esc(d.phone)}</a>`:'—'}</span><span>🚗 ${esc(d.car)||'—'} ${esc(d.carNum)?'№'+esc(d.carNum):''}</span></div>
  <div class="oline"><span>Сегодня выполнено: ${dd.length} зак., ${earn} ₽</span></div>
+ ${wk?`<div class="oline"><span>Счёт недели (с ${hcD} ${hcT}): ${wk.length} зак., водителю ${Math.round(wkPay)} ₽${profile.chief?' · комиссия '+Math.round(wkComm)+' ₽':''}</span></div>`:''}
  <div class="oline" style="color:#8b93a7"><span>${evsTxt(d)}</span></div>
  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px">
  <button class="btn sm ${d.onShift?'green':''}" onclick="toggleShift('${d.id}')">${d.onShift?'🟢 Снять со смены':'⚪ Поставить на смену'}</button>
