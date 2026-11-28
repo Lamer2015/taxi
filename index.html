@@ -1134,9 +1134,9 @@ function render(){
  const d=S.drivers.find(x=>String(x.id)===String(uid));
  $('drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name)}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'-'}</a><br>🚗 ${esc(d.car)||'-'}${d.carNum?' №'+d.carNum:''}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'green':''}" onclick="toggleShift('${d.id}')">${d.onShift?'Сойти со смены':'Выйти на смену'}</button></div>`:`<div class="card">Ваш профиль ещё не привязан — подождите одобрения или обратитесь к диспетчеру.</div>`;
  const mine=S.orders.filter(o=>String(o.drvId)===String(uid)&&!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
- const finAll=S.orders.filter(o=>String(o.drvId)===String(uid)&&['done','dec'].includes(o.status)&&(!drv.histClear||(o.doneT||o.created)>drv.histClear)).sort((a,b)=>b.created-a.created);
+ const finAll=S.orders.filter(o=>String(o.drvId)===String(uid)&&['done','dec'].includes(o.status)&&(!(d&&d.histClear)||(o.doneT||o.created)>(d&&d.histClear))).sort((a,b)=>b.created-a.created);
  const fin=finAll.slice(0,10);
- const drvRate=(+drv.rate||13);
+ const drvRate=(+((d&&d.rate))||13);
  const doneSum=finAll.filter(o=>o.status==='done').reduce((s,o)=>s+(+o.price||0)-drvCommission(o,drvRate),0);
  $('drvOrders').innerHTML='<div class="h2">Мои заказы</div>'+(mine.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет активных заказов</div>')+'<div class="h2">История (последние 10)</div>'+(fin.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет выполненных заказов</div>')+`<div class="stat" style="margin:8px 0"><span>Заработано:</span><b>${Math.round(doneSum)} ₽</b></div><button class="btn sm" onclick="clearMyHist()">🧹 Очистить историю</button>`;
  }
