@@ -200,6 +200,23 @@ connDb.on('value',snap=>{
  nb.textContent=v?'✅ Подключено':'⛔ Нет связи с сервером…';
 });
 
+/* ---- запасной канал: прямые HTTPS-запросы (если канал SDK не проходит) ---- */
+let useRest=false,restTimer=null;
+function restGet(path){return fetch(FB_DEFAULT.databaseURL+'/'+path+'.json').then(r=>{if(!r.ok)throw new Error('HTTP '+r.status);return r.json();});}
+function restPut(path,val){return fetch(FB_DEFAULT.databaseURL+'/'+path+'.json',{method:'PUT',body:JSON.stringify(val||null)});}
+function normNext(x){if(!Array.isArray(x.drivers))x.drivers=[];if(!Array.isArray(x.orders))x.orders=[];}
+function startRestPoll(){
+ if(restTimer)return;
+ restTimer=setInterval(()=>{
+  restGet('taxi_rozh').then(r=>{
+   if(!r)return;
+   const next=Object.assign({drivers:[],orders:[]},r);delete next.pass;delete next.fb;normNext(next);
+   const cur=JSON.stringify([S&&S.drivers,S&&S.orders]),nw=JSON.stringify([next.drivers,next.orders]);
+   if(cur!==nw){S=next;render();syncNotifs();}
+  }).catch(()=>{});
+ },4000);
+}
+
 let S=null,USERS={};
 let uid=null,profile=null,role=null,curPanel='orders',curWait=null,expandedDrv=null;
 const $=id=>document.getElementById(id);
@@ -207,7 +224,7 @@ function esc(s){return (s||'').replace(/</g,'&lt;');}
 function fmtT(ts){const d=new Date(ts);return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');}
 function screen(name){['authScr','waitScr','app'].forEach(x=>$(x).classList.toggle('hidden',x!==name));}
 function norm(){if(!S)return;if(!Array.isArray(S.drivers))S.drivers=[];if(!Array.isArray(S.orders))S.orders=[];}
-function save(){if(!S)return;norm();rootDb.set(S).catch(()=>{});render();}
+function save(){if(!S)return;norm();if(useRest){restPut('taxi_rozh',{drivers:S.drivers,orders:S.orders}).catch(()=>{});}else{rootDb.set(S).catch(()=>{});}render();}
 
 function errTxt(e){
  const c=(e&&e.code)||'';
@@ -272,7 +289,7 @@ let waitMsg='';
 function retried(fn,tries,delay){tries=tries===undefined?5:tries;delay=delay||3000;
  return fn().catch(e=>{if(tries<=0)throw e;return new Promise(r=>setTimeout(r,delay)).then(()=>retried(fn,tries-1,delay));});}
 function afterLogin(u){
- retried(()=>usersDb.child(u.uid).once('value')).then(p=>{
+ retried(()=>usersDb.child(u.uid).once('value')).then(p=>p.val()).catch(()=>retried(()=>restGet('taxi_users/'+u.uid),2).then(v=>{useRest=true;startRestPoll();return v;})).then(p=>{
  profile=p.val();
  if(!profile){profile={role:'drv',fio:'',phone:'',email:u.email,status:'pending'};usersDb.child(u.uid).set(profile);}
  // Проверка почты письмом не блокирует вход: письма Firebase плохо доходят до российских почтовых сервисов.
@@ -281,14 +298,14 @@ function afterLogin(u){
  if(profile.status==='fired'){showWait('blocked');return;}
  if(profile.status==='pending'){showWait('pending');return;}
  role=profile.role;
- retried(()=>rootDb.once('value')).then(sn=>{
- S=Object.assign({drivers:[],orders:[]},sn.val()||{});delete S.pass;delete S.fb;norm();
+ retried(()=>rootDb.once('value')).then(sn=>sn.val()).catch(()=>retried(()=>restGet('taxi_rozh'),2).then(v=>{useRest=true;startRestPoll();return v;})).then(data=>{
+ S=Object.assign({drivers:[],orders:[]},data||{});delete S.pass;delete S.fb;norm();
  if(role==='drv'&&profile.status==='ok'&&!S.drivers.some(d=>String(d.id)===String(uid))){
  S.drivers.push({id:uid,uid:uid,name:profile.fio||'',phone:profile.phone||'',car:profile.car||'',carNum:profile.carNum||'',onShift:false});save();
  }
  enterApp();
- }).catch(e=>{showWait('error');waitMsg='Сервер не ответил — нажмите «Обновить»'+(e&&e.code?' ('+e.code+')':'');renderWait();});
- }).catch(e=>{showWait('error');waitMsg='Сервер не ответил — нажмите «Обновить»'+(e&&e.code?' ('+e.code+')':'');renderWait();});
+ }).catch(e=>{showWait('error');waitMsg='Сервер не ответил: '+((e&&(e.code||e.message))||'сеть')+' — нажмите «Обновить»; если повторяется, переключите Wi-Fi↔мобильный интернет';renderWait();});
+ }).catch(e=>{showWait('error');waitMsg='Сервер не ответил: '+((e&&(e.code||e.message))||'сеть')+' — нажмите «Обновить»; если повторяется, переключите Wi-Fi↔мобильный интернет';renderWait();});
 }
 auth.onAuthStateChanged(u=>{
  if(!u){uid=null;profile=null;S=null;USERS={};if(curWait==='rejected'||curWait==='blocked')screen('waitScr');else screen('authScr');return;}
