@@ -123,6 +123,7 @@ button:active{transform:scale(.95);filter:brightness(.85)}
  <button data-t="orders" class="on">Заказы</button>
  <button data-t="drivers">Водители</button>
  <button data-t="history">История</button>
+ <button data-t="sums">Суммы</button>
  <button data-t="requests" id="tabRequests">Заявки</button>
  <button data-t="summary">Сводка</button>
  </div>
@@ -161,8 +162,13 @@ button:active{transform:scale(.95);filter:brightness(.85)}
  </div>
 
  <div id="p-history" class="panel hidden">
- <div class="h2">История заказов</div>
+ <div style="display:flex;gap:8px;align-items:center"><div class="h2" style="margin:0">История заказов</div><button class="btn sm" id="btnHistTxt" style="margin-left:auto">⬇ Скачать TXT</button></div>
  <div id="histList"></div>
+ </div>
+
+ <div id="p-sums" class="panel hidden">
+ <div class="h2">Суммы водителей</div>
+ <div id="sumsBox"></div>
  </div>
 
  <div id="p-drivers" class="panel hidden">
@@ -179,9 +185,14 @@ button:active{transform:scale(.95);filter:brightness(.85)}
 
  <div id="p-summary" class="panel hidden"><div id="summaryBox"></div></div>
 
+ <div class="tabs hidden" id="drvTabs">
+ <button data-t="drvc" class="on">Заказы</button>
+ <button data-t="drvs">Суммы</button>
+ </div>
  <div id="p-driver" class="panel hidden">
  <div id="drvInfo"></div>
  <div id="drvOrders"></div>
+ <div id="drvSums" class="hidden"></div>
  </div>
  </div>
 </div>
@@ -329,13 +340,35 @@ $('btnLogout').onclick=()=>auth.signOut();
 function showPanel(p){
  if(p==='requests'&&!(profile&&profile.chief))p='orders';
  curPanel=p;
- ['orders','drivers','requests','summary','history'].forEach(x=>$('p-'+x).classList.toggle('hidden',x!==p||role!=='disp'));
+ ['orders','drivers','requests','summary','history','sums'].forEach(x=>$('p-'+x).classList.toggle('hidden',x!==p||role!=='disp'));
  $('tabRequests').classList.toggle('hidden',!(profile&&profile.chief));
  $('p-driver').classList.toggle('hidden',role!=='drv');
+ if(role==='drv')$('drvTabs').classList.remove('hidden');
  document.querySelectorAll('#mainTabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===p));
  render();
 }
 document.querySelectorAll('#mainTabs button').forEach(b=>b.onclick=()=>showPanel(b.dataset.t));
+$('drvTabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;$('drvTabs').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));const s=b.dataset.t==='drvs';$('drvSums').classList.toggle('hidden',!s);$('drvInfo').classList.toggle('hidden',s);$('drvOrders').classList.toggle('hidden',s);};
+function histTxt(){
+ if(!S)return;
+ const done=S.orders.filter(o=>['done','dec'].includes(o.status)).sort((a,b)=>(a.doneT||a.created)-(b.doneT||b.created));
+ const byDay={};
+ done.forEach(o=>{const k=fmtD(o.doneT||o.created);(byDay[k]=byDay[k]||[]).push(o);});
+ let out='';
+ Object.keys(byDay).sort().forEach(k=>{
+  out+='\n=== '+k+' ===\n';
+  byDay[k].forEach(o=>{
+   const dv=S.drivers.find(x=>String(x.id)===String(o.drvId));
+   out+=fmtT(o.doneT||o.created)+'  '+(o.from||'—')+' → '+(o.to||'—')+'  ·  '+(o.type||'Поездка')+'  ·  водитель: '+(dv&&dv.name?dv.name:'—')+'  ·  '+(+o.price||0)+' ₽'+(o.status==='dec'?'  (ОТМЕНЁН)':'')+'\n';
+  });
+ });
+ const blob=new Blob(['\ufeff'+out],{type:'text/plain;charset=utf-8'});
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);
+ a.download='история_заказов_'+(new Date()).toISOString().slice(0,10)+'.txt';
+ document.body.appendChild(a);a.click();a.remove();
+}
+$('btnHistTxt').onclick=histTxt;
 
 /* ---- вкладки вход/регистрация ---- */
 $('tabIn').onclick=()=>{$('tabIn').classList.add('on');$('tabReg').classList.remove('on');$('loginForm').classList.remove('hidden');$('regForm').classList.add('hidden');$('authSub').textContent='Вход в систему';$('authErr').textContent='';};
@@ -432,18 +465,9 @@ function drvHist(d){
  const all=S.orders.filter(o=>String(o.drvId)===String(d.id)&&o.status==='done').sort((a,b)=>(b.doneT||b.created)-(a.doneT||a.created));
  if(!all.length)return '<div class="card" style="color:#8b93a7">Выполненных заказов пока нет</div>';
  const rate=(+d.rate||13);
- const hc=d.histClear||0;
- const cur=hc?all.filter(o=>(o.doneT||o.created)>hc):all;
- const pre=hc?all.filter(o=>(o.doneT||o.created)<=hc):[];
- const tot=cur.reduce((s,o)=>s+(+o.price||0)-drvCommission(o,rate),0);
- const comm=cur.reduce((s,o)=>s+drvCommission(o,rate),0);
- const pTot=pre.reduce((s,o)=>s+(+o.price||0)-drvCommission(o,rate),0);
- const pComm=pre.reduce((s,o)=>s+drvCommission(o,rate),0);
- let h='<div class="card" style="margin-top:8px"><div class="h2">Выполненные заказы</div>';
- if(!cur.length)h+='<div class="card" style="color:#8b93a7">После последнего расчёта заказов нет</div>';
- else h+=cur.map(o=>`<div class="stat"><span>${fmtD(o.doneT||o.created)} · ${esc(o.from)} → ${esc(o.to)}</span><b>${Math.round((+o.price||0)-drvCommission(o,rate))} ₽</b></div>`).join('')+`<div class="stat"><span>Итого водителю (с последнего расчёта)</span><b>${Math.round(tot)} ₽</b></div>`+(profile&&profile.chief?`<div class="stat"><span>Комиссия руководителю (${rate}%)</span><b>${Math.round(comm)} ₽</b></div>`:'');
- if(pre.length)h+=`<div class="stat"><span>Ранее, до расчёта ${fmtD(hc)} ${fmtT(hc)}: ${pre.length} зак.</span><b>${Math.round(pTot)} ₽${profile&&profile.chief?' · комиссия '+Math.round(pComm)+' ₽':''}</b></div>`;
- return h+'</div>';
+ const tot=all.reduce((s,o)=>s+(+o.price||0)-drvCommission(o,rate),0);
+ const comm=all.reduce((s,o)=>s+drvCommission(o,rate),0);
+ return '<div class="card" style="margin-top:8px"><div class="h2">Выполненные заказы</div>'+all.map(o=>`<div class="stat"><span>${fmtD(o.doneT||o.created)} · ${esc(o.from)} → ${esc(o.to)}</span><b>${Math.round((+o.price||0)-drvCommission(o,rate))} ₽</b></div>`).join('')+`<div class="stat"><span>Итого водителю</span><b>${Math.round(tot)} ₽</b></div>`+(profile&&profile.chief?`<div class="stat"><span>Комиссия руководителю (${rate}%)</span><b>${Math.round(comm)} ₽</b></div>`:'')+'</div>';
 }
 
 /* ---- водители ---- */
@@ -1168,24 +1192,19 @@ function render(){
  const drvRate=(+((d&&d.rate))||13);
  const doneSum=finAll.filter(o=>o.status==='done').reduce((s,o)=>s+(+o.price||0)-drvCommission(o,drvRate),0);
  const commSum=finAll.filter(o=>o.status==='done').reduce((s,o)=>s+drvCommission(o,drvRate),0);
- $('drvOrders').innerHTML='<div class="h2">Мои заказы</div>'+(mine.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет активных заказов</div>')+'<div class="h2">История (последние 10)</div>'+(fin.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет выполненных заказов</div>')+`<div class="stat" style="margin:8px 0"><span>Заработано:</span><b>${Math.round(doneSum)} ₽</b></div><div class="stat" style="margin:0 0 8px"><span>Комиссия к оплате:</span><b style="color:#ff8a8a">${Math.round(commSum)} ₽</b></div><button class="btn sm" onclick="clearMyHist()">🧹 Очистить историю</button>`;
+ const hcD=(d&&d.histClear)||0;
+ $('drvSums').innerHTML=`<div class="card"><div class="h2">Суммы</div><div class="stat"><span>Счёт ведётся с</span><b>${hcD?fmtD(hcD)+' '+fmtT(hcD):'начала работы'}</b></div><div class="stat"><span>Заработано</span><b>${Math.round(doneSum)} ₽</b></div><div class="stat"><span>Комиссия к оплате</span><b style="color:#ff8a8a">${Math.round(commSum)} ₽</b></div><div class="oline" style="color:#8b93a7"><span>Сброс после расчёта делает руководитель</span></div></div>`;
+ $('drvOrders').innerHTML='<div class="h2">Мои заказы</div>'+(mine.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет активных заказов</div>')+'<div class="h2">История (последние 10)</div>'+(fin.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет выполненных заказов</div>');
  }
  if(role==='disp'){
  $('drvList').innerHTML=S.drivers.map(d=>{
  const dd=S.orders.filter(o=>String(o.drvId)===String(d.id)&&o.status==='done');
  const earn=dd.reduce((s,o)=>s+(+o.price||0),0);
- const hc=d.histClear||0;
- const hcD=hc?fmtD(hc):'';
- const hcT=hc?fmtT(hc):'';
- const wk=S.orders.filter(o=>String(o.drvId)===String(d.id)&&o.status==='done'&&(!hc||(o.doneT||o.created)>hc));
- const wkPay=wk.reduce((s,o)=>s+(+o.price||0)-drvCommission(o,(+d.rate||13)),0);
- const wkComm=wk.reduce((s,o)=>s+drvCommission(o,(+d.rate||13)),0);
  const busy=S.orders.find(o=>String(o.drvId)===String(d.id)&&(o.status==='acc'||o.status==='way'));
  return `<div class="card"><div class="oline"><span class="big">👤 ${esc(d.name)} ${d.carNum?'№'+esc(d.carNum):''}</span><span class="pill ${busy?'p-dec':(d.onShift?'p-acc':'p-new')}">${busy?'занят':(d.onShift?'на смене':'не на смене')}</span></div>
  ${busy?`<div class="oline"><span>🚕 сейчас везёт: ${esc(busy.from)} → ${esc(busy.to)}</span></div>`:''}
  <div class="oline"><span>📞 ${d.phone?`<a class="link" href="tel:${d.phone}">${esc(d.phone)}</a>`:'—'}</span><span>🚗 ${esc(d.car)||'—'} ${esc(d.carNum)?'№'+esc(d.carNum):''}</span></div>
  <div class="oline"><span>Сегодня выполнено: ${dd.length} зак., ${earn} ₽</span></div>
- ${wk?`<div class="oline"><span>Счёт недели (с ${hcD} ${hcT}): ${wk.length} зак., водителю ${Math.round(wkPay)} ₽${profile.chief?' · комиссия '+Math.round(wkComm)+' ₽':''}</span></div>`:''}
  <div class="oline" style="color:#8b93a7"><span>${evsTxt(d)}</span></div>
  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px">
  <button class="btn sm ${d.onShift?'green':''}" onclick="toggleShift('${d.id}')">${d.onShift?'🟢 Снять со смены':'⚪ Поставить на смену'}</button>
@@ -1215,6 +1234,13 @@ function render(){
  <div class="stat"><span>Водителям</span><b>${Math.round(allDone.reduce((s,o)=>{const dv=S.drivers.find(x=>String(x.id)===String(o.drvId));return s+(+o.price||0)-drvCommission(o,(dv&&+dv.rate)||13);},0))} ₽</b></div>
  ${profile.chief?`<div class="stat"><span>Комиссия руководителю</span><b>${Math.round(allDone.reduce((s,o)=>{const dv=S.drivers.find(x=>String(x.id)===String(o.drvId));return s+drvCommission(o,(dv&&+dv.rate)||13);},0))} ₽</b></div>`:''}</div>`
  +S.drivers.map(d=>{const dd=allDone.filter(o=>String(o.drvId)===String(d.id));return `<div class="card"><b>${esc(d.name)}</b><div class="stat"><span>Выполнено</span><b>${dd.length}</b></div>${profile.chief?`<div class="stat"><span>Комиссия руководителю (${+d.rate||13}%)</span><b>${Math.round(dd.reduce((s,o)=>s+drvCommission(o,+d.rate||13),0))} ₽</b></div>`:''}<div class="stat"><span>Водителю</span><b>${Math.round(dd.reduce((s,o)=>s+(+o.price||0)-drvCommission(o,+d.rate||13),0))} ₽</b></div></div>`;}).join('');
+ $('sumsBox').innerHTML=(S.drivers.length?S.drivers.map(d=>{
+  const hc=d.histClear||0;
+  const wk=S.orders.filter(o=>String(o.drvId)===String(d.id)&&o.status==='done'&&(!hc||(o.doneT||o.created)>hc));
+  const pay=wk.reduce((s,o)=>s+(+o.price||0)-drvCommission(o,(+d.rate||13)),0);
+  const comm=wk.reduce((s,o)=>s+drvCommission(o,(+d.rate||13)),0);
+  return `<div class="card"><b>${esc(d.name)}</b><div class="stat"><span>Счёт ведётся с</span><b>${hc?fmtD(hc)+' '+fmtT(hc):'начала работы'}</b></div><div class="stat"><span>Заработал (с последнего расчёта)</span><b>${Math.round(pay)} ₽</b></div><div class="stat"><span>${profile.chief?'Должен комиссию ('+(+d.rate||13)+'%)':'Должен комиссию'}</span><b style="color:#ff8a8a">${Math.round(comm)} ₽</b></div><div style="display:flex;gap:8px;margin-top:4px"><button class="btn sm gray" onclick="resetDrv('${d.id}')">🔄 Сброс</button></div></div>`;
+ }).join(''):'<div class="card" style="color:#8b93a7">Водителей нет</div>');
  }
 }
 </script>
