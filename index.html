@@ -515,7 +515,7 @@ function render(){
  if(!S||!role)return;
  if(role==='drv'){
  const d=S.drivers.find(x=>String(x.id)===String(uid));
- $('drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name)}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'-'}</a><br>🚗 ${esc(d.car)||'-'}${d.carNum?' №'+d.carNum:''}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift('${d.id}')">${d.onShift?'Уйти со смены':'Выйти на смену'}</button></div>`:`<div class="card">Ваш профиль ещё не привязан — подождите одобрения или обратитесь к диспетчеру.</div>`;
+ $('drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name)}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'-'}</a><br>🚗 ${esc(d.car)||'-'}${d.carNum?' №'+d.carNum:''}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'red':''}" onclick="toggleShift('${d.id}')">${d.onShift?'Сойти со смены':'Выйти на смену'}</button></div>`:`<div class="card">Ваш профиль ещё не привязан — подождите одобрения или обратитесь к диспетчеру.</div>`;
  const mine=S.orders.filter(o=>String(o.drvId)===String(uid)&&!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
  const fin=S.orders.filter(o=>String(o.drvId)===String(uid)&&['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created).slice(0,10);
  $('drvOrders').innerHTML='<div class="h2">Мои заказы</div>'+(mine.map(o=>orderCard(o,true)).join('')||'<div class="card" style="color:#8b93a7">Пока нет активных заказов</div>')+'<div class="h2">История</div>'+(fin.map(o=>orderCard(o,true)).join('')||'');
@@ -530,8 +530,8 @@ function render(){
  <div class="oline"><span>📞 ${d.phone?`<a class="link" href="tel:${d.phone}">${esc(d.phone)}</a>`:'—'}</span><span>🚗 ${esc(d.car)||'—'} ${esc(d.carNum)?'№'+esc(d.carNum):''}</span></div>
  <div class="oline"><span>Сегодня выполнено: ${dd.length} зак., ${earn} ₽</span></div>
  <div class="oline" style="color:#8b93a7"><span>${evsTxt(d)}</span></div>
- <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift('${d.id}')">${d.onShift?'Убрать со смены':'На смену'}</button>
- <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift('${d.id}')">${d.onShift?'🟢 Снять со смены':'⚪ Поставить на смену'}</button>${profile.chief?`<button class="btn sm red" onclick="fireUser('${d.id}')">Отстранить</button>`:''}</div>`;}).join('');
+ <button class="btn sm ${d.onShift?'red':''}" onclick="toggleShift('${d.id}')">${d.onShift?'🔴 Снять со смены':'⚪ Поставить на смену'}</button>
+ ${profile.chief?`<button class="btn sm red" style="margin-left:10px" onclick="fireUser('${d.id}')">Отстранить</button>`:''}</div>`;}).join('');
  const showFired=!!(profile&&profile.chief);
  $('firedHdr').classList.toggle('hidden',!showFired);
  const fired=showFired?Object.entries(USERS).filter(([id,u])=>u&&u.status==='fired'):[];
