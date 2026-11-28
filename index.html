@@ -45,6 +45,7 @@ button:active{transform:scale(.95);filter:brightness(.85)}
 .hidden{display:none!important}
 .netbar{padding:8px;text-align:center;font-size:13px;border-radius:8px;margin-bottom:10px}
 .net-on{background:#123a20;color:#7ee08a}
+.net-off{background:#3a1212;color:#ff8a8a}
 .eta-pick{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .eta-pick button{padding:8px 12px;border-radius:8px;border:1px solid #2c3347;background:#12141a;color:#eee;font-size:14px}
 .eta-pick button.on{background:#ffd54a;color:#111;font-weight:700}
@@ -190,6 +191,14 @@ firebase.initializeApp(FB_DEFAULT);
 const auth=firebase.auth();
 const rootDb=firebase.database().ref('taxi_rozh');
 const usersDb=firebase.database().ref('taxi_users');
+const connDb=firebase.database().ref('.info/connected');
+connDb.on('value',snap=>{
+ const v=!!snap.val(),nb=$('netbar');
+ if(!nb)return;
+ nb.classList.toggle('net-on',v);
+ nb.classList.toggle('net-off',!v);
+ nb.textContent=v?'✅ Подключено':'⛔ Нет связи с сервером…';
+});
 
 let S=null,USERS={};
 let uid=null,profile=null,role=null,curPanel='orders',curWait=null,expandedDrv=null;
@@ -208,7 +217,7 @@ function errTxt(e){
  if(c.includes('wrong-password')||c.includes('invalid-credential'))return 'Неверный пароль';
  if(c.includes('user-not-found'))return 'Пользователь с такой почтой не найден';
  if(c.includes('too-many-requests'))return 'Слишком много попыток — подождите немного';
- if(c.includes('network'))return 'Нет интернета — проверьте соединение';
+ if(c.includes('network'))return 'Связь с сервером нестабильна — попробуйте ещё раз через минуту';
  return 'Ошибка: '+((e&&e.message)||c||'неизвестная');
 }
 
@@ -260,8 +269,10 @@ function renderWait(){
 let waitMsg='';
 
 /* ---- авторизация ---- */
+function retried(fn,tries,delay){tries=tries===undefined?5:tries;delay=delay||3000;
+ return fn().catch(e=>{if(tries<=0)throw e;return new Promise(r=>setTimeout(r,delay)).then(()=>retried(fn,tries-1,delay));});}
 function afterLogin(u){
- usersDb.child(u.uid).once('value').then(p=>{
+ retried(()=>usersDb.child(u.uid).once('value')).then(p=>{
  profile=p.val();
  if(!profile){profile={role:'drv',fio:'',phone:'',email:u.email,status:'pending'};usersDb.child(u.uid).set(profile);}
  // Проверка почты письмом не блокирует вход: письма Firebase плохо доходят до российских почтовых сервисов.
@@ -270,14 +281,14 @@ function afterLogin(u){
  if(profile.status==='fired'){showWait('blocked');return;}
  if(profile.status==='pending'){showWait('pending');return;}
  role=profile.role;
- rootDb.once('value').then(sn=>{
+ retried(()=>rootDb.once('value')).then(sn=>{
  S=Object.assign({drivers:[],orders:[]},sn.val()||{});delete S.pass;delete S.fb;norm();
  if(role==='drv'&&profile.status==='ok'&&!S.drivers.some(d=>String(d.id)===String(uid))){
  S.drivers.push({id:uid,uid:uid,name:profile.fio||'',phone:profile.phone||'',car:profile.car||'',carNum:profile.carNum||'',onShift:false});save();
  }
  enterApp();
- }).catch(()=>{showWait('error');waitMsg='Нет связи с сервером';renderWait();});
- }).catch(()=>{showWait('error');waitMsg='Нет связи с сервером';renderWait();});
+ }).catch(e=>{showWait('error');waitMsg='Сервер не ответил — нажмите «Обновить»'+(e&&e.code?' ('+e.code+')':'');renderWait();});
+ }).catch(e=>{showWait('error');waitMsg='Сервер не ответил — нажмите «Обновить»'+(e&&e.code?' ('+e.code+')':'');renderWait();});
 }
 auth.onAuthStateChanged(u=>{
  if(!u){uid=null;profile=null;S=null;USERS={};if(curWait==='rejected'||curWait==='blocked')screen('waitScr');else screen('authScr');return;}
@@ -316,9 +327,10 @@ $('regDisp').onclick=()=>{regRole='disp';$('regDisp').classList.add('on');$('reg
 $('btnIn').onclick=()=>{
  const email=$('inEmail').value.trim().toLowerCase(),p=$('inPass').value;
  if(!email||!p){$('authErr').textContent='Введите почту и пароль';return;}
- auth.signInWithEmailAndPassword(email,p).then(()=>{
+ $('authErr').textContent='Связываемся с сервером…';
+ retried(()=>auth.signInWithEmailAndPassword(email,p),3,3000).then(()=>{
  try{localStorage.setItem('txRemember',JSON.stringify({email:email,pass:$('remember').checked?p:''}));}catch(e){}
- }).catch(e=>$('authErr').textContent=errTxt(e));
+ }).catch(e=>{$('authErr').textContent=errTxt(e);});
 };
 $('inPass').onkeydown=e=>{if(e.key==='Enter')$('btnIn').click();};
 $('btnReset').onclick=()=>{
