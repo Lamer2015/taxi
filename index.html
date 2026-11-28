@@ -16,7 +16,8 @@ h1{font-size:28px;text-align:center;margin:24px 0 4px;color:#ffd54a}
 .tabs button.on{background:#ffd54a;color:#1a1a1a}
 input,select,textarea{width:100%;padding:12px;margin:6px 0;border-radius:10px;border:solid 1px #2c3347;background:#12141a;color:#eee;font-size:16px}
 input:focus,select:focus{outline:2px solid #ffd54a}
-button{cursor:pointer}
+button{cursor:pointer;transition:transform .08s ease,filter .08s ease}
+button:active{transform:scale(.95);filter:brightness(.85)}
 .btn{width:100%;padding:14px;border:0;border-radius:12px;background:#ffd54a;color:#1a1a1a;font-size:17px;font-weight:700;margin-top:10px}
 .btn.gray{background:#2c3347;color:#eee}
 .btn.red{background:#e05555;color:#fff}
@@ -47,6 +48,8 @@ button{cursor:pointer}
 .accline{font-size:15px;font-weight:600;color:#5be3a4;margin-top:6px}
 .link{color:#6db3ff;text-decoration:none}
 .stat{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #262c3d}
+.chk{display:flex;align-items:center;gap:8px;color:#8b93a7;font-size:14px;margin-top:8px}
+.chk input{width:auto;margin:0;transform:scale(1.2)}
 </style>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
@@ -66,6 +69,7 @@ button{cursor:pointer}
  <div id="loginForm">
  <input type="email" id="inEmail" placeholder="Почта" autocapitalize="off">
  <input type="password" id="inPass" placeholder="Пароль">
+ <label class="chk"><input type="checkbox" id="remember" checked> Запомнить меня</label>
  <button class="btn" id="btnIn">Войти</button>
  <button class="btn gray" id="btnReset">Забыли пароль?</button>
  </div>
@@ -154,6 +158,8 @@ button{cursor:pointer}
  <div id="p-drivers" class="panel hidden">
  <div class="h2">Водители</div>
  <div id="drvList"></div>
+ <div class="h2">Отстранённые (доступ закрыт)</div>
+ <div id="firedList"></div>
  </div>
 
  <div id="p-requests" class="panel hidden">
@@ -183,7 +189,8 @@ const $=id=>document.getElementById(id);
 function esc(s){return (s||'').replace(/</g,'&lt;');}
 function fmtT(ts){const d=new Date(ts);return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');}
 function screen(name){['authScr','waitScr','app'].forEach(x=>$(x).classList.toggle('hidden',x!==name));}
-function save(){if(!S)return;rootDb.set(S).catch(()=>{});render();}
+function norm(){if(!S)return;if(!Array.isArray(S.drivers))S.drivers=[];if(!Array.isArray(S.orders))S.orders=[];}
+function save(){if(!S)return;norm();rootDb.set(S).catch(()=>{});render();}
 
 function errTxt(e){
  const c=(e&&e.code)||'';
@@ -201,9 +208,18 @@ function errTxt(e){
 rootDb.on('value',snap=>{
  if(!S)return;
  const r=snap.val();
- if(r){S=Object.assign({drivers:[],orders:[]},r);delete S.pass;S.users={};render();syncNotifs();}
+ if(r){S=Object.assign({drivers:[],orders:[]},r);delete S.pass;delete S.fb;norm();render();syncNotifs();}
 });
-usersDb.on('value',snap=>{USERS=snap.val()||{};if(role==='disp'&&curPanel==='requests')render();});
+usersDb.on('value',snap=>{
+ USERS=snap.val()||{};
+ if(role==='disp'&&curPanel==='requests')render();
+ if(uid&&USERS[uid]){
+ const st=USERS[uid].status;
+ if((st==='fired'||st==='rejected')&&curWait!=='blocked'){curWait='blocked';showWait('blocked');}
+ if(curWait==='blocked'&&st==='ok'){curWait=null;afterLogin(auth.currentUser);}
+ if(curWait==='pending'&&st==='ok'){curWait=null;afterLogin(auth.currentUser);}
+ }
+});
 
 /* ---- экраны ожидания ---- */
 function showWait(kind){curWait=kind;screen('waitScr');renderWait();}
@@ -223,6 +239,10 @@ function renderWait(){
  $('waitBox').innerHTML=`<div class="h2">⛔ Доступ отклонён</div><p style="color:#8b93a7;font-size:14px;margin-bottom:8px">Диспетчер отклонил эту заявку. Если считаете это ошибкой, свяжитесь с диспетчерской напрямую.</p>${wErr}<button class="btn gray" id="wOut">Выйти</button>`;
  $('wOut').onclick=()=>{location.reload();};
  }
+ if(curWait==='blocked'){
+ $('waitBox').innerHTML=`<div class="h2">⛔ Доступ приостановлен</div><p style="color:#8b93a7;font-size:14px;margin-bottom:8px">Диспетчер отстранил вас от работы. Если считаете это ошибкой, свяжитесь с диспетчерской напрямую.</p>${wErr}<button class="btn gray" id="wOut">Выйти</button>`;
+ $('wOut').onclick=()=>{location.reload();};
+ }
  if(curWait==='error'){
  $('waitBox').innerHTML=`<div class="h2">⚠️ ${esc(waitMsg||'Нет связи с сервером')}</div><p style="color:#8b93a7;font-size:14px;margin-bottom:8px">Проверьте интернет и попробуйте снова.</p>${wErr}<button class="btn" id="wRetry">Обновить</button><button class="btn gray" id="wOut">Выйти</button>`;
  $('wRetry').onclick=()=>location.reload();
@@ -239,16 +259,20 @@ function afterLogin(u){
  // Проверка почты письмом не блокирует вход: письма Firebase плохо доходят до российских почтовых сервисов.
  // Доступ по-прежнему контролирует одобрение диспетчера.
  if(profile.status==='rejected'){auth.signOut();showWait('rejected');return;}
+ if(profile.status==='fired'){showWait('blocked');return;}
  if(profile.status==='pending'){showWait('pending');return;}
  role=profile.role;
  rootDb.once('value').then(sn=>{
- S=Object.assign({drivers:[],orders:[]},sn.val()||{});delete S.pass;
+ S=Object.assign({drivers:[],orders:[]},sn.val()||{});delete S.pass;delete S.fb;norm();
+ if(role==='drv'&&profile.status==='ok'&&!S.drivers.some(d=>String(d.id)===String(uid))){
+ S.drivers.push({id:uid,uid:uid,name:profile.fio||'',phone:profile.phone||'',car:profile.car||'',carNum:profile.carNum||'',onShift:false});save();
+ }
  enterApp();
  }).catch(()=>{showWait('error');waitMsg='Нет связи с сервером';renderWait();});
  }).catch(()=>{showWait('error');waitMsg='Нет связи с сервером';renderWait();});
 }
 auth.onAuthStateChanged(u=>{
- if(!u){uid=null;profile=null;S=null;USERS={};if(curWait==='rejected')screen('waitScr');else screen('authScr');return;}
+ if(!u){uid=null;profile=null;S=null;USERS={};if(curWait==='rejected'||curWait==='blocked')screen('waitScr');else screen('authScr');return;}
  afterLogin(u);
 });
 
@@ -281,7 +305,9 @@ $('regDisp').onclick=()=>{regRole='disp';$('regDisp').classList.add('on');$('reg
 $('btnIn').onclick=()=>{
  const email=$('inEmail').value.trim().toLowerCase(),p=$('inPass').value;
  if(!email||!p){$('authErr').textContent='Введите почту и пароль';return;}
- auth.signInWithEmailAndPassword(email,p).catch(e=>$('authErr').textContent=errTxt(e));
+ auth.signInWithEmailAndPassword(email,p).then(()=>{
+ try{localStorage.setItem('txRemember',JSON.stringify({email:email,pass:$('remember').checked?p:''}));}catch(e){}
+ }).catch(e=>$('authErr').textContent=errTxt(e));
 };
 $('inPass').onkeydown=e=>{if(e.key==='Enter')$('btnIn').click();};
 $('btnReset').onclick=()=>{
@@ -290,6 +316,7 @@ $('btnReset').onclick=()=>{
  auth.sendPasswordResetEmail(email).then(()=>$('authErr').textContent='Письмо для сброса пароля отправлено на почту').catch(e=>$('authErr').textContent=errTxt(e));
 };
 
+try{const rSaved=JSON.parse(localStorage.getItem('txRemember')||'{}');if(rSaved.email){$('inEmail').value=rSaved.email;$('inPass').value=rSaved.pass||'';}}catch(e){}
 $('btnReg').onclick=()=>{
  const email=$('rEmail').value.trim().toLowerCase();
  const p1=$('rPass').value,p2=$('rPass2').value;
@@ -309,7 +336,7 @@ $('btnReg').onclick=()=>{
  const hasDisp=Object.values(us.val()||{}).some(x=>x&&x.role==='disp'&&x.status==='ok');
  const st=(regRole==='disp'&&!hasDisp)?'ok':'pending';
  const prof={role:regRole,fio,phone,car,carNum,email,status:st,created:Date.now()};
- return usersDb.child(u.uid).set(prof).then(()=>u.sendEmailVerification().catch(()=>{}));
+ return usersDb.child(u.uid).set(prof).then(()=>{usersDb.child(u.uid+'/events').push({t:Date.now(),act:'регистрация'});return u.sendEmailVerification().catch(()=>{});});
  });
  }).then(()=>{
  btn.disabled=false;btn.textContent='Зарегистрироваться';
@@ -323,13 +350,37 @@ $('btnReg').onclick=()=>{
 function approveUser(id){
  const u=USERS[id];if(!u)return;
  usersDb.child(id).update({status:'ok',approvedAt:Date.now()});
+ usersDb.child(id+'/events').push({t:Date.now(),act:'принят в штат диспетчером'});
  if(u.role==='drv'&&!S.drivers.some(d=>String(d.id)===String(id))){
  S.drivers.push({id:id,uid:id,name:u.fio,phone:u.phone,car:u.car||'',carNum:u.carNum||'',onShift:false});
  save();
  }
  render();
 }
-function rejectUser(id){usersDb.child(id).update({status:'rejected'});}
+function rejectUser(id){usersDb.child(id).update({status:'rejected'});usersDb.child(id+'/events').push({t:Date.now(),act:'заявка отклонена'});}
+function fireUser(id){
+ const d=S.drivers.find(x=>String(x.id)===String(id));if(!d)return;
+ if(!d.uid){delDrv(id);return;}
+ usersDb.child(d.uid).update({status:'fired',firedAt:Date.now()});
+ usersDb.child(d.uid+'/events').push({t:Date.now(),act:'отстранён диспетчером'});
+ S.drivers=S.drivers.filter(x=>String(x.id)!==String(id));save();
+}
+function hireUser(id){
+ const u=USERS[id];if(!u)return;
+ usersDb.child(id).update({status:'ok',reHiredAt:Date.now()});
+ usersDb.child(id+'/events').push({t:Date.now(),act:'возвращён в работу'});
+ if(!S.drivers.some(d=>String(d.id)===String(id))){
+ S.drivers.push({id:id,uid:id,name:u.fio,phone:u.phone,car:u.car||'',carNum:u.carNum||'',onShift:false});save();
+ }
+ render();
+}
+function fmtD(ts){const d=new Date(ts);return d.getDate().toString().padStart(2,'0')+'.'+(d.getMonth()+1).toString().padStart(2,'0');}
+function evsTxt(d){
+ const u=d.uid&&USERS[d.uid];
+ if(!u||!u.events)return 'История: —';
+ const evs=Object.values(u.events).sort((a,b)=>a.t-b.t);
+ return 'История: '+evs.slice(-4).map(e=>fmtD(e.t)+' — '+e.act).join(' · ');
+}
 
 /* ---- водители ---- */
 function toggleShift(id){const d=S.drivers.find(x=>String(x.id)===String(id));if(!d)return;d.onShift=!d.onShift;save();}
@@ -472,8 +523,11 @@ function render(){
  ${busy?`<div class="oline"><span>🚕 сейчас везёт: ${esc(busy.from)} → ${esc(busy.to)}</span></div>`:''}
  <div class="oline"><span>📞 ${d.phone?`<a class="link" href="tel:${d.phone}">${esc(d.phone)}</a>`:'—'}</span><span>🚗 ${esc(d.car)||'—'} ${esc(d.carNum)?'№'+esc(d.carNum):''}</span></div>
  <div class="oline"><span>Сегодня выполнено: ${dd.length} зак., ${earn} ₽</span></div>
+ <div class="oline" style="color:#8b93a7"><span>${evsTxt(d)}</span></div>
  <button class="btn sm ${d.onShift?'':'gray'}" onclick="toggleShift('${d.id}')">${d.onShift?'Убрать со смены':'На смену'}</button>
- <button class="btn sm red" onclick="delDrv('${d.id}')">Удалить</button></div>`;}).join('');
+ <button class="btn sm red" onclick="fireUser('${d.id}')">Отстранить</button></div>`;}).join('');
+ const fired=Object.entries(USERS).filter(([id,u])=>u&&u.status==='fired');
+ $('firedList').innerHTML=fired.map(([id,u])=>`<div class="card"><div class="oline"><span class="big">👤 ${esc(u.fio||'')}</span></div><div class="oline"><span>📞 ${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</span><span>🚗 ${esc(u.car||'')} ${esc(u.carNum||'')}</span></div><button class="btn sm" onclick="hireUser('${id}')">Вернуть в работу</button></div>`).join('')||'<div class="card" style="color:#8b93a7">Отстранённых нет</div>';
  const pend=Object.entries(USERS).filter(([id,u])=>u&&u.status==='pending');
  $('reqList').innerHTML=pend.map(([id,u])=>`<div class="card"><b>${esc(u.fio||u.email)}</b><div class="stat"><span>Роль</span><b>${u.role==='disp'?'диспетчер':'водитель'}</b></div><div class="stat"><span>Телефон</span><b>${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</b></div>${u.role==='drv'?`<div class="stat"><span>Машина</span><b>${esc(u.car||'—')} ${esc(u.carNum||'')}</b></div>`:''}<div class="stat"><span>Почта</span><b>${esc(u.email||'')}</b></div><div class="btnrow"><button class="btn" onclick="approveUser('${id}')">Одобрить</button><button class="btn red" onclick="rejectUser('${id}')">Отклонить</button></div></div>`).join('')||'<div class="card" style="color:#8b93a7">Новых заявок нет</div>';
  const act=S.orders.filter(o=>!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
