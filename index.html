@@ -92,6 +92,8 @@ button:active{transform:scale(.95);filter:brightness(.85)}
  <input id="rCarNum" placeholder="Номер машины (с буквами)" autocapitalize="characters">
  </div>
  <input id="rPhone" placeholder="Телефон" inputmode="tel">
+ <div style="color:#8b93a7;font-size:12px;margin:6px 0 2px">Дата рождения</div>
+ <input type="date" id="rBirth">
  <input type="email" id="rEmail" placeholder="Почта" autocapitalize="off">
  <input type="password" id="rPass" placeholder="Пароль (минимум 6 символов)">
  <input type="password" id="rPass2" placeholder="Повторите пароль">
@@ -162,7 +164,7 @@ button:active{transform:scale(.95);filter:brightness(.85)}
  </div>
 
  <div id="p-history" class="panel hidden">
- <div style="display:flex;gap:8px;align-items:center"><div class="h2" style="margin:0">История заказов</div><button class="btn sm" id="btnHistTxt" style="margin-left:auto">⬇ Скачать Word</button></div>
+ <div style="display:flex;gap:8px;align-items:center"><div class="h2" style="margin:0">История заказов</div><button class="btn sm" id="btnHistTxt" style="margin-left:auto">⬇ Скачать Excel</button><button class="btn sm red hidden" id="btnHistDel">🗑 Удалить историю</button></div>
  <div id="histList"></div>
  </div>
 
@@ -315,7 +317,7 @@ function afterLogin(u){
  retried(()=>rootDb.once('value')).then(sn=>sn.val()).catch(()=>retried(()=>restGet('taxi_rozh'),2).then(v=>{useRest=true;startRestPoll();return v;})).then(data=>{
  S=Object.assign({drivers:[],orders:[]},data||{});delete S.pass;delete S.fb;norm();
  if(role==='drv'&&profile.status==='ok'&&uid&&!S.drivers.some(d=>String(d.id)===String(uid))){
- S.drivers.push({id:uid,uid:uid,name:profile.fio||'',phone:profile.phone||'',car:profile.car||'',carNum:profile.carNum||'',onShift:false});save();
+ S.drivers.push({id:uid,uid:uid,name:profile.fio||'',phone:profile.phone||'',car:profile.car||'',carNum:profile.carNum||'',birth:profile.birth||'',onShift:false});save();
  }
  enterApp();
  }).catch(e=>{showWait('error');waitMsg='Сервер не ответил: '+((e&&(e.code||e.message))||'сеть')+' — нажмите «Обновить»; если повторяется, переключите Wi-Fi↔мобильный интернет';renderWait();});
@@ -349,45 +351,139 @@ function showPanel(p){
 }
 document.querySelectorAll('#mainTabs button').forEach(b=>b.onclick=()=>showPanel(b.dataset.t));
 $('drvTabs').onclick=e=>{const b=e.target.closest('button');if(!b)return;$('drvTabs').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));const s=b.dataset.t==='drvs';$('drvSums').classList.toggle('hidden',!s);$('drvInfo').classList.toggle('hidden',s);$('drvOrders').classList.toggle('hidden',s);};
-function histWord(){
+/* xlsx-writer start */
+const enc8=(typeof TextEncoder!=='undefined')?new TextEncoder():{encode:s=>{const b=unescape(encodeURIComponent(String(s)));const a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a;}};
+function crc32(buf){
+ const t=crc32.t||(crc32.t=(()=>{const T=[];for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1);T[n]=c>>>0;}return T;})());
+ let c=0xFFFFFFFF;
+ for(let i=0;i<buf.length;i++)c=(c>>>8)^t[(c^buf[i])&0xFF];
+ return (c^0xFFFFFFFF)>>>0;
+}
+function zipMake(files){
+ let parts=[],central=[],offset=0;
+ files.forEach(f=>{
+  const nb=enc8.encode(f.name),data=f.data,crc=crc32(data);
+  const head=new Uint8Array(30+nb.length);
+  const dv=new DataView(head.buffer);
+  dv.setUint32(0,0x04034b50,true);
+  dv.setUint16(4,20,true);dv.setUint16(6,0,true);dv.setUint16(8,0,true);
+  dv.setUint16(10,0,true);dv.setUint16(12,0,true);
+  dv.setUint32(14,crc,true);dv.setUint32(18,data.length,true);dv.setUint32(22,data.length,true);
+  dv.setUint16(26,nb.length,true);dv.setUint16(28,0,true);
+  head.set(nb,30);
+  parts.push(head,data);
+  const cen=new Uint8Array(46+nb.length);
+  const cv=new DataView(cen.buffer);
+  cv.setUint32(0,0x02014b50,true);
+  cv.setUint16(4,20,true);cv.setUint16(6,20,true);
+  cv.setUint16(8,0,true);cv.setUint16(10,0,true);
+  cv.setUint16(12,0,true);cv.setUint16(14,0,true);
+  cv.setUint32(16,crc,true);cv.setUint32(20,data.length,true);cv.setUint32(24,data.length,true);
+  cv.setUint16(28,nb.length,true);cv.setUint16(30,0,true);cv.setUint16(32,0,true);
+  cv.setUint16(34,0,true);cv.setUint16(36,0,true);cv.setUint32(38,0,true);
+  cv.setUint32(42,offset,true);
+  cen.set(nb,46);
+  central.push(cen);
+  offset+=head.length+data.length;
+ });
+ const cLen=central.reduce((s,x)=>s+x.length,0);
+ const eocd=new Uint8Array(22);
+ const ev=new DataView(eocd.buffer);
+ ev.setUint32(0,0x06054b50,true);ev.setUint16(8,files.length,true);ev.setUint16(10,files.length,true);
+ ev.setUint32(12,cLen,true);ev.setUint32(16,offset,true);
+ const out=new Uint8Array(offset+cLen+22);
+ let pos=0;
+ parts.forEach(x=>{out.set(x,pos);pos+=x.length;});
+ central.forEach(x=>{out.set(x,pos);pos+=x.length;});
+ out.set(eocd,pos);
+ return out;
+}
+function makeXlsx(sheetName,rows){
+ const escXml=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+ const col=n=>{let s='';n++;while(n>0){n--;s=String.fromCharCode(65+n%26)+s;n=Math.floor(n/26);}return s;};
+ const cellsOf=r=>{
+  let h='<row r="'+(r+1)+'">';
+  (rows[r]||[]).forEach((c,i)=>{
+   let v=c,s=0;
+   if(Array.isArray(c)){v=c[0];s=c[1]||0;}
+   if(v!==''&&v!==null&&v!==undefined){
+    const str=String(v);
+    if(/^-?\d+(\.\d+)?$/.test(str.trim()))h+='<c r="'+col(i)+(r+1)+'" s="'+s+'"><v>'+str.trim()+'</v></c>';
+    else h+='<c r="'+col(i)+(r+1)+'" t="inlineStr" s="'+s+'"><is><t xml:space="preserve">'+escXml(str)+'</t></is></c>';
+   }
+  });
+  return h+'</row>';
+ };
+ const sheet='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'+rows.map((_,r)=>cellsOf(r)).join('')+'</sheetData></worksheet>';
+ const workbook='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="'+escXml(sheetName)+'" sheetId="1" r:id="rId1"/></sheets></workbook>';
+ const wbRels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>';
+ const rootRels='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
+ const types='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
+ const styles='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Arial"/></font><font><b/><sz val="11"/><name val="Arial"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFE600"/><bgColor rgb="FFFFE600"/></patternFill></fill></fills><borders count="2"><border/><border><left style="thin"><color rgb="FF000000"/></left><right style="thin"><color rgb="FF000000"/></right><top style="thin"><color rgb="FF000000"/></top><bottom style="thin"><color rgb="FF000000"/></bottom></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/><xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/><xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/></cellXfs></styleSheet>';
+ return zipMake([
+  {name:'[Content_Types].xml',data:enc8.encode(types)},
+  {name:'_rels/.rels',data:enc8.encode(rootRels)},
+  {name:'xl/workbook.xml',data:enc8.encode(workbook)},
+  {name:'xl/_rels/workbook.xml.rels',data:enc8.encode(wbRels)},
+  {name:'xl/styles.xml',data:enc8.encode(styles)},
+  {name:'xl/worksheets/sheet1.xml',data:enc8.encode(sheet)}
+ ]);
+}
+/* xlsx-writer end */
+function histXls(){
  if(!S)return;
- const done=S.orders.filter(o=>['done','dec'].includes(o.status)).sort((a,b)=>(a.doneT||a.created)-(b.doneT||b.created));
+ const done=S.orders.filter(o=>o.status==='done').sort((a,b)=>(a.doneT||a.created)-(b.doneT||b.created));
  const byDay={};
  done.forEach(o=>{const k=fmtD(o.doneT||o.created);(byDay[k]=byDay[k]||[]).push(o);});
- let body='';
+ const rows=[];
  Object.keys(byDay).sort().forEach(k=>{
   const list=byDay[k];
   let no=0,totP=0,totC=0;
   const perDrv={};
-  const rows=list.map(o=>{
+  rows.push([['Заказы за '+k,1]]);
+  rows.push([['№',2],['Маршрут',2],['Водитель',2],['Цена',2],['Ставка',2],['Комиссия',2],['Примечание',2]]);
+  list.forEach(o=>{
    no++;
    const dv=S.drivers.find(x=>String(x.id)===String(o.drvId));
    const name=dv?dv.name:'—';
    const rate=(dv&&+dv.rate)||13;
    const c=drvCommission(o,rate);
    const p=(+o.price||0);
-   totP+=p; totC+=c;
+   totP+=p;totC+=c;
    const pr=perDrv[name]=perDrv[name]||{n:0,p:0,c:0,rate};
-   pr.n++; pr.p+=p; pr.c+=c;
+   pr.n++;pr.p+=p;pr.c+=c;
    const note=[];
    if(o.type&&o.type!=='Поездка')note.push(o.type);
    if(o.comment)note.push(o.comment);
-   if(o.status==='dec')note.push('ОТМЕНЁН');
-   return `<tr><td>${no}</td><td>${esc(o.from||'—')} → ${esc(o.to||'—')}</td><td>${esc(name)}</td><td style="text-align:right">${Math.round(p)}</td><td style="text-align:right">${rate}%</td><td style="text-align:right">${c}</td><td>${esc(note.join('; '))}</td></tr>`;
-  }).join('');
-  body+=`<h2>Заказы за ${k}</h2><table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;font-family:Arial;font-size:11pt"><tr style="background:#fee600;font-weight:bold"><th>№</th><th>Маршрут</th><th>Водитель</th><th>Цена</th><th>Ставка</th><th>Комиссия</th><th>Примечание</th></tr>${rows}<tr style="font-weight:bold"><td colspan="3">ИТОГО</td><td style="text-align:right">${Math.round(totP)}</td><td></td><td style="text-align:right">${Math.round(totC*10)/10}</td><td></td></tr></table>`;
+   rows.push([[no,3],[esc((o.from||'—')+' → '+(o.to||'—')),3],[esc(name),3],[p,3],[rate+'%',3],[c,3],[esc(note.join('; ')),3]]);
+  });
+  rows.push([['ИТОГО',1],['',1],['',1],[Math.round(totP),1],['',1],[Math.round(totC*10)/10,1],['',1]]);
+  rows.push(['']);
+  rows.push([['Сводка по водителям за '+k,1]]);
+  rows.push([['Водитель',2],['Заказов',2],['Заработок',2],['Ставка',2],['Комиссия',2]]);
   let sN=0,sP=0,sC=0;
-  const srows=Object.keys(perDrv).map(n=>{const p=perDrv[n];sN+=p.n;sP+=p.p;sC+=p.c;return `<tr><td>${esc(n)}</td><td style="text-align:right">${p.n}</td><td style="text-align:right">${Math.round(p.p)}</td><td style="text-align:right">${p.rate}%</td><td style="text-align:right">${Math.round(p.c*10)/10}</td></tr>`;}).join('');
-  body+=`<p><b>Сводка по водителям за ${k}</b></p><table border="1" cellspacing="0" cellpadding="4" style="border-collapse:collapse;font-family:Arial;font-size:11pt"><tr style="background:#fee600;font-weight:bold"><th>Водитель</th><th>Заказов</th><th>Заработок</th><th>Ставка</th><th>Комиссия</th></tr>${srows}<tr style="font-weight:bold"><td>ИТОГО</td><td style="text-align:right">${sN}</td><td style="text-align:right">${Math.round(sP)}</td><td></td><td style="text-align:right">${Math.round(sC*10)/10}</td></tr></table><br>`;
+  Object.keys(perDrv).forEach(n=>{const p=perDrv[n];sN+=p.n;sP+=p.p;sC+=p.c;
+   rows.push([[esc(n),3],[p.n,3],[Math.round(p.p),3],[p.rate+'%',3],[Math.round(p.c*10)/10,3]]);});
+  rows.push([['ИТОГО',1],[sN,1],[Math.round(sP),1],['',1],[Math.round(sC*10)/10,1]]);
+  rows.push(['']);
  });
- const html=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>Заказы</title></head><body style="font-family:Arial">${body}</body></html>`;
- const blob=new Blob(['\ufeff'+html],{type:'application/msword'});
+ const blob=new Blob([makeXlsx('Заказы',rows)],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
  const a=document.createElement('a');
  a.href=URL.createObjectURL(blob);
- a.download='заказы_'+(new Date()).toISOString().slice(0,10)+'.doc';
+ a.download='заказы_'+(new Date()).toISOString().slice(0,10)+'.xlsx';
  document.body.appendChild(a);a.click();a.remove();
 }
-$('btnHistTxt').onclick=histWord;
+$('btnHistTxt').onclick=histXls;
+function histDel(){
+ if(!(profile&&profile.chief))return;
+ const closed=S.orders.filter(o=>['done','dec'].includes(o.status));
+ if(!closed.length){alert('История пуста — удалять нечего.');return;}
+ if(!confirm('Удалить закрытые заказы: '+closed.length+' шт.?\n\nИсчезнут выполненные и отменённые. Активные заказы останутся.\n\nУбедитесь, что файл Excel уже скачан!'))return;
+ S.orders=S.orders.filter(o=>!['done','dec'].includes(o.status));
+ save();
+ alert('История удалена: '+closed.length+' зак. Активные заказы не тронуты.');
+}
+$('btnHistDel').onclick=histDel;
 
 /* ---- вкладки вход/регистрация ---- */
 $('tabIn').onclick=()=>{$('tabIn').classList.add('on');$('tabReg').classList.remove('on');$('loginForm').classList.remove('hidden');$('regForm').classList.add('hidden');$('authSub').textContent='Вход в систему';$('authErr').textContent='';};
@@ -417,10 +513,12 @@ $('btnReg').onclick=()=>{
  const p1=$('rPass').value,p2=$('rPass2').value;
  const sur=$('rSur').value.trim(),nm=$('rName').value.trim(),pat=$('rPat').value.trim();
  const phone=$('rPhone').value.trim(),car=$('rCar').value.trim(),carNum=$('rCarNum').value.trim().toUpperCase();
+ const birth=$('rBirth').value;
  const fio=[sur,nm,pat].filter(Boolean).join(' ');
  if(!sur||!nm){$('authErr').textContent='Укажите фамилию и имя';return;}
  if(regRole==='drv'&&(!car||!carNum)){$('authErr').textContent='Укажите машину и её номер';return;}
  if(!phone){$('authErr').textContent='Укажите телефон';return;}
+ if(!birth){$('authErr').textContent='Укажите дату рождения';return;}
  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){$('authErr').textContent='Некорректный адрес почты';return;}
  if(p1.length<6){$('authErr').textContent='Пароль — минимум 6 символов';return;}
  if(p1!==p2){$('authErr').textContent='Пароли не совпадают';return;}
@@ -430,7 +528,7 @@ $('btnReg').onclick=()=>{
  return usersDb.once('value').then(us=>{
  const hasDisp=Object.values(us.val()||{}).some(x=>x&&x.role==='disp'&&x.status==='ok');
  const st=(regRole==='disp'&&!hasDisp)?'ok':'pending';
- const prof=Object.assign({role:regRole,fio,phone,car,carNum,email,status:st,created:Date.now()},(regRole==='disp'&&!hasDisp)?{chief:true}:{});
+ const prof=Object.assign({role:regRole,fio,phone,car,carNum,birth,email,status:st,created:Date.now()},(regRole==='disp'&&!hasDisp)?{chief:true}:{});
  return usersDb.child(u.uid).set(prof).then(()=>{usersDb.child(u.uid+'/events').push({t:Date.now(),act:'регистрация'});return u.sendEmailVerification().catch(()=>{});});
  });
  }).then(()=>{
@@ -448,7 +546,7 @@ function approveUser(id){
  usersDb.child(id).update({status:'ok',approvedAt:Date.now()});
  usersDb.child(id+'/events').push({t:Date.now(),act:'принят в штат диспетчером'});
  if(u.role==='drv'&&!S.drivers.some(d=>String(d.id)===String(id))){
- S.drivers.push({id:id,uid:id,name:u.fio,phone:u.phone,car:u.car||'',carNum:u.carNum||'',onShift:false});
+ S.drivers.push({id:id,uid:id,name:u.fio,phone:u.phone,car:u.car||'',carNum:u.carNum||'',birth:u.birth||'',onShift:false});
  save();
  }
  render();
@@ -473,12 +571,7 @@ function hireUser(id){
  render();
 }
 function fmtD(ts){const d=new Date(ts);return d.getDate().toString().padStart(2,'0')+'.'+(d.getMonth()+1).toString().padStart(2,'0');}
-function evsTxt(d){
- const u=d.uid&&USERS[d.uid];
- if(!u||!u.events)return 'История: —';
- const evs=Object.values(u.events).sort((a,b)=>a.t-b.t);
- return 'История: '+evs.slice(-4).map(e=>fmtD(e.t)+' — '+e.act).join(' · ');
-}
+function bdFmt(b){return b?b.split('-').reverse().join('.'):'—';}
 function expandDrv(id){expandedDrv=(String(expandedDrv)===String(id))?null:id;render();}
 function drvHist(d){
  const all=S.orders.filter(o=>String(o.drvId)===String(d.id)&&o.status==='done').sort((a,b)=>(b.doneT||b.created)-(a.doneT||a.created));
@@ -1204,7 +1297,7 @@ function render(){
  if(!S||!role)return;
  if(role==='drv'){
  const d=S.drivers.find(x=>String(x.id)===String(uid));
- $('drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name)}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'-'}</a><br>🚗 ${esc(d.car)||'-'}${d.carNum?' №'+d.carNum:''}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'green':''}" onclick="toggleShift('${d.id}')">${d.onShift?'Сойти со смены':'Выйти на смену'}</button></div>`:`<div class="card">Ваш профиль ещё не привязан — подождите одобрения или обратитесь к диспетчеру.</div>`;
+ $('drvInfo').innerHTML=d?`<div class="card">👤 <b>${esc(d.name)}</b> · <a class="link" href="tel:${d.phone}">${esc(d.phone)||'-'}</a><br>🚗 ${esc(d.car)||'-'}${d.carNum?' №'+d.carNum:''}${d.birth?'<br>📅 '+bdFmt(d.birth):''}<br>${d.onShift?'🟢 Вы на смене':'⚪ Вы не на смене'} <button class="btn sm ${d.onShift?'green':''}" onclick="toggleShift('${d.id}')">${d.onShift?'Сойти со смены':'Выйти на смену'}</button></div>`:`<div class="card">Ваш профиль ещё не привязан — подождите одобрения или обратитесь к диспетчеру.</div>`;
  const mine=S.orders.filter(o=>String(o.drvId)===String(uid)&&!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
  const finAll=S.orders.filter(o=>String(o.drvId)===String(uid)&&['done','dec'].includes(o.status)&&(!(d&&d.histClear)||(o.doneT||o.created)>(d&&d.histClear))).sort((a,b)=>b.created-a.created);
  const fin=finAll.slice(0,10);
@@ -1217,14 +1310,11 @@ function render(){
  }
  if(role==='disp'){
  $('drvList').innerHTML=S.drivers.map(d=>{
- const dd=S.orders.filter(o=>String(o.drvId)===String(d.id)&&o.status==='done');
- const earn=dd.reduce((s,o)=>s+(+o.price||0),0);
  const busy=S.orders.find(o=>String(o.drvId)===String(d.id)&&(o.status==='acc'||o.status==='way'));
  return `<div class="card"><div class="oline"><span class="big">👤 ${esc(d.name)} ${d.carNum?'№'+esc(d.carNum):''}</span><span class="pill ${busy?'p-dec':(d.onShift?'p-acc':'p-new')}">${busy?'занят':(d.onShift?'на смене':'не на смене')}</span></div>
  ${busy?`<div class="oline"><span>🚕 сейчас везёт: ${esc(busy.from)} → ${esc(busy.to)}</span></div>`:''}
  <div class="oline"><span>📞 ${d.phone?`<a class="link" href="tel:${d.phone}">${esc(d.phone)}</a>`:'—'}</span><span>🚗 ${esc(d.car)||'—'} ${esc(d.carNum)?'№'+esc(d.carNum):''}</span></div>
- <div class="oline"><span>Сегодня выполнено: ${dd.length} зак., ${earn} ₽</span></div>
- <div class="oline" style="color:#8b93a7"><span>${evsTxt(d)}</span></div>
+ ${d.birth?`<div class="oline"><span>📅 Дата рождения: ${bdFmt(d.birth)}</span></div>`:''}
  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:2px">
  <button class="btn sm ${d.onShift?'green':''}" onclick="toggleShift('${d.id}')">${d.onShift?'🟢 Снять со смены':'⚪ Поставить на смену'}</button>
  <button class="btn sm" onclick="expandDrv('${d.id}')">📄 История</button>
@@ -1238,7 +1328,7 @@ function render(){
  const fired=showFired?Object.entries(USERS).filter(([id,u])=>u&&u.status==='fired'):[];
  $('firedList').innerHTML=showFired?fired.map(([id,u])=>`<div class="card"><div class="oline"><span class="big">👤 ${esc(u.fio||'')}</span></div><div class="oline"><span>📞 ${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</span><span>🚗 ${esc(u.car||'')} ${esc(u.carNum||'')}</span></div><div style="display:flex;gap:8px;align-items:center"><button class="btn sm" onclick="expandDrv('${id}')">📄 История</button><button class="btn sm" style="margin-left:auto" onclick="hireUser('${id}')">Вернуть в работу</button></div>${expandedDrv===String(id)?drvHist({id:id}):''}</div>`).join(''):'<div class="card" style="color:#8b93a7">Отстранённых нет</div>';
  const pend=Object.entries(USERS).filter(([id,u])=>u&&u.status==='pending');
- $('reqList').innerHTML=(profile&&profile.chief)?pend.map(([id,u])=>`<div class="card"><b>${esc(u.fio||u.email)}</b><div class="stat"><span>Роль</span><b>${u.role==='disp'?'диспетчер':'водитель'}</b></div><div class="stat"><span>Телефон</span><b>${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</b></div>${u.role==='drv'?`<div class="stat"><span>Машина</span><b>${esc(u.car||'—')} ${esc(u.carNum||'')}</b></div>`:''}<div class="stat"><span>Почта</span><b>${esc(u.email||'')}</b></div><div class="btnrow"><button class="btn" onclick="approveUser('${id}')">Одобрить</button><button class="btn red" onclick="rejectUser('${id}')">Отклонить</button></div></div>`).join(''):'<div class="card" style="color:#8b93a7">Новых заявок нет</div>';
+ $('reqList').innerHTML=(profile&&profile.chief)?pend.map(([id,u])=>`<div class="card"><b>${esc(u.fio||u.email)}</b><div class="stat"><span>Роль</span><b>${u.role==='disp'?'диспетчер':'водитель'}</b></div><div class="stat"><span>Телефон</span><b>${u.phone?`<a class="link" href="tel:${esc(u.phone)}">${esc(u.phone)}</a>`:'—'}</b></div>${u.role==='drv'?`<div class="stat"><span>Машина</span><b>${esc(u.car||'—')} ${esc(u.carNum||'')}</b></div>`:''}<div class="stat"><span>Дата рождения</span><b>${bdFmt(u.birth)}</b></div><div class="stat"><span>Почта</span><b>${esc(u.email||'')}</b></div><div class="btnrow"><button class="btn" onclick="approveUser('${id}')">Одобрить</button><button class="btn red" onclick="rejectUser('${id}')">Отклонить</button></div></div>`).join(''):'<div class="card" style="color:#8b93a7">Новых заявок нет</div>';
  const act=S.orders.filter(o=>!['done','dec'].includes(o.status)).sort((a,b)=>b.created-a.created);
  const done=S.orders.filter(o=>o.status==='done'||o.status==='dec').sort((a,b)=>(b.doneT||b.created)-(a.doneT||a.created));
  const dec=S.orders.filter(o=>o.status==='dec'&&new Date(o.created).toDateString()===new Date().toDateString());
@@ -1260,6 +1350,7 @@ function render(){
   const comm=wk.reduce((s,o)=>s+drvCommission(o,(+d.rate||13)),0);
   return `<div class="card"><b>${esc(d.name)}</b><div class="stat"><span>Счёт ведётся с</span><b>${hc?fmtD(hc)+' '+fmtT(hc):'начала работы'}</b></div><div class="stat"><span>Заработал (с последнего расчёта)</span><b>${Math.round(pay)} ₽</b></div><div class="stat"><span>${profile.chief?'Должен комиссию ('+(+d.rate||13)+'%)':'Должен комиссию'}</span><b style="color:#ff8a8a">${Math.round(comm)} ₽</b></div><div style="display:flex;gap:8px;margin-top:4px"><button class="btn sm gray" onclick="resetDrv('${d.id}')">🔄 Сброс</button></div></div>`;
  }).join(''):'<div class="card" style="color:#8b93a7">Водителей нет</div>');
+ $('btnHistDel').classList.toggle('hidden',!(profile&&profile.chief));
  }
 }
 </script>
